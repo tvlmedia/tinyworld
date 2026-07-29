@@ -1,14 +1,16 @@
 import { GameState } from "../app/GameState";
-import { homelessCount, housingCapacity } from "../simulation/HousingSystem";
+import { housingCapacity } from "../simulation/HousingSystem";
 import { formattedClock } from "../simulation/TimeSystem";
 import { weatherLabel } from "../simulation/WeatherSystem";
 
 export function hudSummary(state: GameState): string {
+  const totalPopulation = totalInhabitants(state);
+  const totalBeds = totalHousingCapacity(state);
+  const housedPopulation = Math.min(totalPopulation, totalBeds);
+  const unhousedPopulation = Math.max(0, totalPopulation - totalBeds);
   const happiness = Math.round(
     state.villagers.reduce((sum, villager) => sum + villager.happiness, 0) / Math.max(1, state.villagers.length)
   );
-  const beds = housingCapacity(state);
-  const homeless = homelessCount(state);
   return `
     <div class="topbar__title">
       <strong>${state.world.name}</strong>
@@ -22,13 +24,14 @@ export function hudSummary(state: GameState): string {
       <span>${state.time.paused ? "Pauze" : `${state.time.speed}x`}</span>
     </div>
     <div class="resource-strip" aria-label="Dorpsvoorraad">
-      <span>Bewoners <strong>${state.villagers.length}</strong></span>
+      <span>Inwoners <strong>${totalPopulation}</strong></span>
+      <span>Actief <strong>${state.villagers.length}</strong></span>
       <span>Civs <strong>${state.civilizations.length}</strong></span>
       <span>Nederzettingen <strong>${state.settlements.length}</strong></span>
       <span>Oorlogen <strong>${state.wars.filter((war) => war.active).length}</strong></span>
       <span>Routes <strong>${state.tradeRoutes.filter((route) => route.active).length}</strong></span>
-      <span>Bedden <strong>${state.villagers.length - homeless}/${beds}</strong></span>
-      ${homeless > 0 ? `<span>Geen huis <strong>${homeless}</strong></span>` : ""}
+      <span>Bedden <strong>${housedPopulation}/${totalBeds}</strong></span>
+      ${unhousedPopulation > 0 ? `<span>Geen huis <strong>${unhousedPopulation}</strong></span>` : ""}
       <span>Voedsel <strong>${Math.floor(state.resources.food)}</strong></span>
       <span>Hout <strong>${Math.floor(state.resources.wood)}</strong></span>
       <span>Steen <strong>${Math.floor(state.resources.stone)}</strong></span>
@@ -39,4 +42,14 @@ export function hudSummary(state: GameState): string {
       <span>Doel <strong>${state.civilization.nextGoal}</strong></span>
     </div>
   `;
+}
+
+function totalInhabitants(state: GameState): number {
+  const population = state.settlements.reduce((sum, settlement) => sum + settlement.population, 0);
+  return population > 0 ? Math.round(population) : state.villagers.length;
+}
+
+function totalHousingCapacity(state: GameState): number {
+  const beds = state.settlements.reduce((sum, settlement) => sum + settlement.housingCapacity, 0);
+  return beds > 0 ? beds : housingCapacity(state);
 }
