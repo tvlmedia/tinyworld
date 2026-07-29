@@ -183,5 +183,11 @@ function fireSpreadMultiplier(state: GameState, x: number, y: number): number {
         (building.type === "firestation" ? 24 : building.type === "reservoir" ? 18 : 11)
   );
   if (protectedByWater) multiplier *= 0.68;
+  const responding = state.villagers.filter(
+    (villager) =>
+      !!villager.emergencyFire &&
+      Math.hypot(villager.emergencyFire.x - x, villager.emergencyFire.y - y) <= 3
+  ).length;
+  if (responding > 0) multiplier *= Math.max(0.18, 1 - responding * 0.24);
   return multiplier;
 }

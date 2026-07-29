@@ -356,6 +356,24 @@ export class EntityRenderer {
     ctx.fillStyle = "#42372f";
     ctx.fillRect(x - size * 0.13, y - size * 0.43, size * 0.26, size * 0.08);
 
+    if (villager.emergencyFire) {
+      ctx.strokeStyle = "#7dd8f2";
+      ctx.lineWidth = Math.max(1, size * 0.055);
+      ctx.beginPath();
+      ctx.arc(x, y - size * 0.14, size * 0.25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#d94b3f";
+      ctx.fillRect(x - size * 0.15, y - size * 0.48, size * 0.3, size * 0.08);
+    }
+
+    if ((villager.carryingWater ?? 0) > 0) {
+      ctx.fillStyle = "#3c8fc4";
+      ctx.fillRect(x + size * 0.13, y - size * 0.2, size * 0.2, size * 0.2);
+      ctx.strokeStyle = "rgba(225, 247, 255, 0.9)";
+      ctx.lineWidth = Math.max(1, size * 0.04);
+      ctx.strokeRect(x + size * 0.13, y - size * 0.2, size * 0.2, size * 0.2);
+    }
+
     if (villager.carrying) {
       ctx.fillStyle = villager.carrying.type === "wood" ? "#8b5e34" : villager.carrying.type === "food" ? "#c94141" : "#9da1a4";
       ctx.fillRect(x + size * 0.12, y - size * 0.24, size * 0.18, size * 0.16);

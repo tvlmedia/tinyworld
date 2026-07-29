@@ -39,7 +39,7 @@ export class Simulation {
     updateWarfare(state, dt);
     updateStability(state, dt);
     updateFire(state, dt);
-    updateEmergencyResponse(state);
+    updateEmergencyResponse(state, dt);
     updateHousing(state);
     updateCooldowns(state, dt);
     refreshBuildingEffects(state);
