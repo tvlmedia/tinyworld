@@ -34,7 +34,8 @@ export type Selection =
   | { kind: "none" }
   | { kind: "tile"; x: number; y: number }
   | { kind: "villager"; id: string }
-  | { kind: "building"; id: string };
+  | { kind: "building"; id: string }
+  | { kind: "settlement"; id: string };
 
 export interface TimeState {
   day: number;
@@ -69,6 +70,7 @@ export interface SettingsState {
   soundEnabled: boolean;
   autosave: boolean;
   dayNightSpeed: number;
+  settlementInfluence: boolean;
 }
 
 export interface ToolCooldown {
@@ -146,7 +148,8 @@ export const DEFAULT_SETTINGS: SettingsState = {
   reducedMotion: false,
   soundEnabled: false,
   autosave: true,
-  dayNightSpeed: 1
+  dayNightSpeed: 1,
+  settlementInfluence: true
 };
 
 export function defaultCivilizationState(): CivilizationState {

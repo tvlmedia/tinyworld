@@ -8,10 +8,17 @@ import { Camera } from "./Camera";
 
 export class EntityRenderer {
   draw(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, time: number): void {
-    const orderedBuildings = [...state.buildings].sort((a, b) => a.y - b.y);
+    const bounds = camera.visibleTileBounds(state.world);
+    const orderedBuildings = state.buildings
+      .filter((building) => building.x + building.width >= bounds.minX - 4 && building.x <= bounds.maxX + 4 && building.y + building.height >= bounds.minY - 4 && building.y <= bounds.maxY + 4)
+      .sort((a, b) => a.y - b.y);
     for (const building of orderedBuildings) this.drawBuilding(ctx, state, camera, building, time);
-    for (const fire of state.fires) this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity, time);
-    const orderedVillagers = [...state.villagers].sort((a, b) => a.y - b.y);
+    for (const fire of state.fires.filter((fire) => fire.x >= bounds.minX - 3 && fire.x <= bounds.maxX + 3 && fire.y >= bounds.minY - 3 && fire.y <= bounds.maxY + 3)) {
+      this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity, time);
+    }
+    const orderedVillagers = state.villagers
+      .filter((villager) => villager.x >= bounds.minX - 2 && villager.x <= bounds.maxX + 2 && villager.y >= bounds.minY - 2 && villager.y <= bounds.maxY + 2)
+      .sort((a, b) => a.y - b.y);
     for (const villager of orderedVillagers) this.drawVillager(ctx, state, camera, villager, time);
     if (state.mapMode === "trade" || state.mapMode === "diplomacy") this.drawTradeRoutes(ctx, state, camera);
     if (state.mapMode === "war" || state.mapMode === "diplomacy") this.drawWarLines(ctx, state, camera);

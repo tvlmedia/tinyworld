@@ -2,7 +2,10 @@ import { GameState } from "../app/GameState";
 import { Camera } from "./Camera";
 import { EntityRenderer } from "./EntityRenderer";
 import { LightingRenderer } from "./LightingRenderer";
+import { MapOverlayRenderer } from "./MapOverlayRenderer";
+import { MinimapRenderer } from "./MinimapRenderer";
 import { ParticleSystem } from "./ParticleSystem";
+import { SettlementRenderer } from "./SettlementRenderer";
 import { TerritoryRenderer } from "./TerritoryRenderer";
 import { TileRenderer } from "./TileRenderer";
 import { WeatherRenderer } from "./WeatherRenderer";
@@ -14,8 +17,11 @@ export class Renderer {
   private readonly tiles = new TileRenderer();
   private readonly territory = new TerritoryRenderer();
   private readonly entities = new EntityRenderer();
+  readonly settlements = new SettlementRenderer();
+  readonly minimap = new MinimapRenderer();
   private readonly weather = new WeatherRenderer();
   private readonly lighting = new LightingRenderer();
+  private readonly mapOverlay = new MapOverlayRenderer();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
@@ -35,6 +41,7 @@ export class Renderer {
   }
 
   render(state: GameState, time: number, dt: number): void {
+    this.camera.updateAnimation(state.world, time);
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -46,8 +53,11 @@ export class Renderer {
     this.tiles.draw(this.ctx, state, this.camera, time);
     this.territory.draw(this.ctx, state, this.camera);
     this.entities.draw(this.ctx, state, this.camera, time);
+    this.settlements.draw(this.ctx, state, this.camera, time);
     this.lighting.draw(this.ctx, state, width, height);
     this.weather.draw(this.ctx, state, width, height, time);
+    this.mapOverlay.draw(this.ctx, state, width, height);
+    this.minimap.draw(this.ctx, state, this.camera, width, height);
     this.particles.update(dt);
     this.particles.draw(this.ctx);
   }

@@ -18,6 +18,8 @@ export class InputManager {
   private pointerDownAt?: Point;
   private pointerId?: number;
   private lastTouchDistance?: number;
+  private lastSettlementLabelClick?: { id: string; at: number };
+  private draggingMinimap = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -58,11 +60,23 @@ export class InputManager {
     this.hasDragged = false;
     this.lastPointer = { x: event.clientX, y: event.clientY };
     this.pointerDownAt = { x: event.clientX, y: event.clientY };
+    const rect = this.canvas.getBoundingClientRect();
+    this.draggingMinimap = this.renderer.minimap.hitTest(event.clientX - rect.left, event.clientY - rect.top);
+    if (this.draggingMinimap) {
+      this.moveCameraFromMinimap(event.clientX - rect.left, event.clientY - rect.top);
+      this.hasDragged = true;
+    }
     this.canvas.classList.add("is-panning");
   };
 
   private onPointerMove = (event: PointerEvent): void => {
     if (!this.dragging || !this.lastPointer || event.pointerId !== this.pointerId) return;
+    if (this.draggingMinimap) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.moveCameraFromMinimap(event.clientX - rect.left, event.clientY - rect.top);
+      this.hasDragged = true;
+      return;
+    }
     const dx = event.clientX - this.lastPointer.x;
     const dy = event.clientY - this.lastPointer.y;
     if (this.pointerDownAt && Math.hypot(event.clientX - this.pointerDownAt.x, event.clientY - this.pointerDownAt.y) > 4) {
@@ -79,14 +93,26 @@ export class InputManager {
     this.lastPointer = undefined;
     this.pointerDownAt = undefined;
     this.pointerId = undefined;
+    this.draggingMinimap = false;
     this.canvas.classList.remove("is-panning");
     if (this.hasDragged || moved > 6) return;
     const rect = this.canvas.getBoundingClientRect();
-    const world = this.renderer.camera.screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+    const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const labelSettlementId = this.renderer.settlements.hitTest(screen.x, screen.y);
+    if (labelSettlementId) {
+      this.selectSettlement(labelSettlementId);
+      return;
+    }
+    const world = this.renderer.camera.screenToWorld(screen.x, screen.y);
     const tileX = Math.floor(world.x);
     const tileY = Math.floor(world.y);
     if (!useToolAt(this.state, this.state.activeTool, tileX, tileY)) {
-      this.state.selected = selectAtWorldPosition(this.state, world.x, world.y);
+      const selected = selectAtWorldPosition(this.state, world.x, world.y);
+      this.state.selected = selected;
+      if (selected.kind === "settlement") {
+        const settlement = this.state.settlements.find((item) => item.id === selected.id);
+        if (settlement) this.state.selectedCivilizationId = settlement.civilizationId;
+      }
       this.callbacks.onSelectionChanged();
     }
   };
@@ -149,4 +175,25 @@ export class InputManager {
       this.state.debug.enabled = !this.state.debug.enabled;
     }
   };
+
+  private selectSettlement(settlementId: string): void {
+    const settlement = this.state.settlements.find((item) => item.id === settlementId);
+    if (!settlement) return;
+    const now = performance.now();
+    const doubleClick = this.lastSettlementLabelClick?.id === settlementId && now - this.lastSettlementLabelClick.at < 420;
+    this.lastSettlementLabelClick = { id: settlementId, at: now };
+    this.state.selected = { kind: "settlement", id: settlement.id };
+    this.state.selectedCivilizationId = settlement.civilizationId;
+    this.renderer.camera.centerOn(
+      { x: settlement.centerX, y: settlement.centerY },
+      this.state.world,
+      doubleClick ? { animate: true, durationMs: 360, zoom: Math.max(1.25, this.renderer.camera.zoom) } : { animate: true, durationMs: 320 }
+    );
+    this.callbacks.onSelectionChanged();
+  }
+
+  private moveCameraFromMinimap(screenX: number, screenY: number): void {
+    const world = this.renderer.minimap.screenToWorld(screenX, screenY, this.state);
+    this.renderer.camera.centerOn(world, this.state.world);
+  }
 }

@@ -249,6 +249,27 @@ p {
   background: rgba(242, 193, 78, 0.25);
 }
 
+.segmented button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.segmented button > span {
+  width: 0.42rem;
+  height: 0.42rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+}
+
+.segmented button.is-active > span {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.18);
+}
+
 .button-row {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -335,6 +356,23 @@ dd {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.16rem;
+  padding: 0.35rem 0.42rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.compact-list li:hover,
+.compact-list li:focus-within {
+  border-color: rgba(242, 193, 78, 0.32);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.compact-list li.is-active {
+  border-color: var(--accent);
+  background: rgba(242, 193, 78, 0.16);
 }
 
 .compact-list button,

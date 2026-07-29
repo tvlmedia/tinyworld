@@ -11,6 +11,15 @@ export function selectAtWorldPosition(state: GameState, worldX: number, worldY: 
     .sort((a, b) => distance(a, { x: worldX, y: worldY }) - distance(b, { x: worldX, y: worldY }))[0];
   if (villager) return { kind: "villager", id: villager.id };
 
+  const settlement = state.settlements
+    .filter((candidate) => distance({ x: candidate.centerX, y: candidate.centerY }, { x: worldX, y: worldY }) < 1.6)
+    .sort(
+      (a, b) =>
+        distance({ x: a.centerX, y: a.centerY }, { x: worldX, y: worldY }) -
+        distance({ x: b.centerX, y: b.centerY }, { x: worldX, y: worldY })
+    )[0];
+  if (settlement) return { kind: "settlement", id: settlement.id };
+
   const building = state.buildings.find((candidate) => buildingContains(candidate, tileX, tileY));
   if (building) return { kind: "building", id: building.id };
 

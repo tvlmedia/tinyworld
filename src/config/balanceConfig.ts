@@ -21,7 +21,8 @@ export const COLONIZATION = {
   baseWoodCost: 12,
   settlers: 5,
   minCapitalPopulation: 18,
-  minDistance: 22,
+  minDistance: 50,
+  minSettlementDistanceTiles: 50,
   maxDistance: 96,
   baseSettlementTarget: 5,
   settlementsPer128Tiles: 2,
@@ -30,6 +31,8 @@ export const COLONIZATION = {
   searchAttemptsPerOrigin: 72,
   siteScoreThreshold: 12
 } as const;
+
+export const MIN_SETTLEMENT_DISTANCE_TILES = COLONIZATION.minSettlementDistanceTiles;
 
 export const ROAD_NETWORK = {
   maxLinksPerStrategyTick: 4,

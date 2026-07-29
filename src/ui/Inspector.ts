@@ -1,5 +1,6 @@
 import { GameState } from "../app/GameState";
 import { BUILDING_DEFINITIONS, allMaterialsDelivered, costLabel } from "../entities/Building";
+import { SETTLEMENT_TIER_LABELS } from "../config/settlementConfig";
 import { describeState } from "../entities/Villager";
 import { occupantsForHouse } from "../simulation/HousingSystem";
 import { getTile, tileIndex } from "../world/World";
@@ -42,6 +43,29 @@ export function inspectorHtml(state: GameState): string {
         <dt>Bedden</dt><dd>${building.capacity > 0 ? `${occupants} / ${building.capacity}` : "-"}</dd>
         <dt>Opslagruimte</dt><dd>${building.storageCapacity}</dd>
         <dt>Productie</dt><dd>${buildingProductionLabel(building.type)}</dd>
+      </dl>
+    `;
+  }
+
+  if (selected.kind === "settlement") {
+    const settlement = state.settlements.find((item) => item.id === selected.id);
+    if (!settlement) return emptyInspector();
+    const civilization = state.civilizations.find((item) => item.id === settlement.civilizationId);
+    const capital = civilization ? state.settlements.find((item) => item.id === civilization.capitalSettlementId) : undefined;
+    const distanceToCapital =
+      capital && capital.id !== settlement.id ? `${Math.round(Math.hypot(settlement.centerX - capital.centerX, settlement.centerY - capital.centerY))} tiles` : "hoofdstad";
+    return `
+      <h2>${settlement.name}</h2>
+      <dl>
+        <dt>Type</dt><dd>${SETTLEMENT_TIER_LABELS[settlement.tier]}</dd>
+        <dt>Beschaving</dt><dd>${civilization?.name ?? "onbekend"}</dd>
+        <dt>Bevolking</dt><dd>${settlement.population}</dd>
+        <dt>Bedden</dt><dd>${settlement.housingCapacity}</dd>
+        <dt>Voedselzekerheid</dt><dd>${Math.round(settlement.foodSecurity)}</dd>
+        <dt>Verdediging</dt><dd>${Math.round(settlement.defense)}</dd>
+        <dt>Stabiliteit</dt><dd>${Math.round(settlement.stability)}</dd>
+        <dt>Afstand tot hoofdstad</dt><dd>${distanceToCapital}</dd>
+        <dt>Centrum</dt><dd>${Math.round(settlement.centerX)}, ${Math.round(settlement.centerY)}</dd>
       </dl>
     `;
   }

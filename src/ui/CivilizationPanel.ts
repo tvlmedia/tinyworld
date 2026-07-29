@@ -1,27 +1,27 @@
 import { GameState } from "../app/GameState";
 import { CIVILIZATION_COLORS, GOVERNMENT_LABELS, TRAIT_LABELS } from "../config/civilizationConfig";
+import { SETTLEMENT_TIER_LABELS } from "../config/settlementConfig";
 import { TECHNOLOGIES_BY_ID } from "../config/technologyConfig";
-import { MapMode } from "../entities/Civilization";
+import { MapMode, Settlement } from "../entities/Civilization";
 
-const MAP_MODE_LABELS: Record<MapMode, string> = {
-  normal: "Wereld",
-  political: "Politiek",
-  diplomacy: "Diplomatie",
-  resources: "Grondstof",
-  population: "Bevolking",
-  technology: "Tech",
-  war: "Oorlog",
-  trade: "Handel"
-};
+export const MAP_MODE_DEFINITIONS: readonly { mode: MapMode; label: string; description: string }[] = [
+  { mode: "normal", label: "Wereld", description: "Normale terreinweergave met wegen, gebouwen, bewoners en nederzettingen." },
+  { mode: "political", label: "Politiek", description: "Toont beschavingsgebieden en territoriumgrenzen." },
+  { mode: "diplomacy", label: "Diplomatie", description: "Kleurt gebieden op basis van relaties met de geselecteerde beschaving." },
+  { mode: "resources", label: "Grondstof", description: "Toont bekende voedsel-, hout- en steenbronnen." },
+  { mode: "population", label: "Bevolking", description: "Toont bevolkingsdichtheid rond nederzettingen." },
+  { mode: "technology", label: "Tech", description: "Toont technologisch niveau per beschaving of gebied." },
+  { mode: "war", label: "Oorlog", description: "Toont actieve oorlogen, legers en frontlijnen wanneer aanwezig." },
+  { mode: "trade", label: "Handel", description: "Toont actieve handelsroutes wanneer aanwezig." }
+];
 
 export function mapModeHtml(state: GameState): string {
-  const modes: MapMode[] = ["normal", "political", "diplomacy", "resources", "population", "technology", "war", "trade"];
   return `
     <div class="segmented segmented--wrap" role="group" aria-label="Kaartmodus">
-      ${modes
+      ${MAP_MODE_DEFINITIONS
         .map(
-          (mode) =>
-            `<button type="button" data-map-mode="${mode}" class="${state.mapMode === mode ? "is-active" : ""}">${MAP_MODE_LABELS[mode]}</button>`
+          ({ mode, label, description }) =>
+            `<button type="button" data-map-mode="${mode}" title="${description}" aria-pressed="${state.mapMode === mode ? "true" : "false"}" class="${state.mapMode === mode ? "is-active" : ""}"><span aria-hidden="true"></span>${label}</button>`
         )
         .join("")}
     </div>
@@ -99,24 +99,47 @@ function relationLabel(state: GameState, selectedId: string, relation: GameState
 }
 
 export function settlementsPanelHtml(state: GameState): string {
-  const settlements = [...state.settlements].sort((a, b) => b.population - a.population).slice(0, 6);
+  const settlements = [...state.settlements].sort((a, b) => settlementSortScore(state, b) - settlementSortScore(state, a) || b.population - a.population);
   return `
     <ol class="compact-list">
       ${settlements
         .map((settlement) => {
           const civilization = state.civilizations.find((item) => item.id === settlement.civilizationId);
+          const capital = civilization ? state.settlements.find((item) => item.id === civilization.capitalSettlementId) : undefined;
+          const distanceToCapital =
+            capital && capital.id !== settlement.id ? `${Math.round(Math.hypot(settlement.centerX - capital.centerX, settlement.centerY - capital.centerY))}t` : "centrum";
+          const active = state.selected.kind === "settlement" && state.selected.id === settlement.id;
           return `
-            <li>
-              <button type="button" data-action="focus-settlement" data-settlement-id="${settlement.id}">
+            <li class="${active ? "is-active" : ""}">
+              <button type="button" data-action="focus-settlement" data-settlement-id="${settlement.id}" aria-current="${active ? "true" : "false"}">
                 ${settlement.name}
               </button>
-              <span>${settlement.tier} · ${settlement.population} · def ${Math.round(settlement.defense)} · stab ${Math.round(settlement.stability)} · ${civilization?.name ?? "-"}</span>
+              <span>${SETTLEMENT_TIER_LABELS[settlement.tier]} · ${settlement.population} · ${civilization?.name ?? "-"} · ${distanceToCapital}</span>
             </li>
           `;
         })
         .join("")}
     </ol>
   `;
+}
+
+function settlementSortScore(state: GameState, settlement: Settlement): number {
+  const civilization = state.civilizations.find((item) => item.id === settlement.civilizationId);
+  if (civilization?.capitalSettlementId === settlement.id) return 1000;
+  switch (settlement.tier) {
+    case "capital":
+      return 950;
+    case "city":
+      return 800;
+    case "town":
+      return 700;
+    case "village":
+      return 600;
+    case "hamlet":
+      return 500;
+    case "camp":
+      return 400;
+  }
 }
 
 export function historyPanelHtml(state: GameState): string {

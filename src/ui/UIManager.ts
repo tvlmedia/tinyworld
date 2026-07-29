@@ -1,4 +1,4 @@
-import { DEFAULT_WORLD_SIZE, GAME_SPEEDS, GameSpeed, WORLD_SIZES } from "../app/Config";
+import { DEFAULT_WORLD_SIZE, GAME_SPEEDS, GameSpeed, WORLD_SIZE_OPTIONS } from "../app/Config";
 import { GameState, SettingsState } from "../app/GameState";
 import { SaveManager, SaveMeta } from "../persistence/SaveManager";
 import { Renderer } from "../rendering/Renderer";
@@ -91,7 +91,10 @@ export class UIManager {
           <label>Seed <input id="seed-input" value="${this.state.world.seed}" /></label>
           <label>Grootte
             <select id="size-input">
-              ${WORLD_SIZES.map((size) => `<option value="${size}" ${size === DEFAULT_WORLD_SIZE ? "selected" : ""}>${size} x ${size}</option>`).join("")}
+              ${WORLD_SIZE_OPTIONS.map(
+                (option) =>
+                  `<option value="${option.width}" ${option.width === DEFAULT_WORLD_SIZE ? "selected" : ""}>${option.label} — ${option.width}×${option.height}</option>`
+              ).join("")}
             </select>
           </label>
           <div class="button-row">
@@ -149,6 +152,7 @@ export class UIManager {
       <label><input data-setting="reducedMotion" type="checkbox" ${settings.reducedMotion ? "checked" : ""} /> Minder beweging</label>
       <label><input data-setting="soundEnabled" type="checkbox" ${settings.soundEnabled ? "checked" : ""} /> Geluid</label>
       <label><input data-setting="autosave" type="checkbox" ${settings.autosave ? "checked" : ""} /> Autosave</label>
+      <label><input data-setting="settlementInfluence" type="checkbox" ${settings.settlementInfluence ? "checked" : ""} /> Invloed dorpen</label>
       <label>Dag/nacht <input data-setting="dayNightSpeed" type="range" min="0.5" max="2" step="0.1" value="${settings.dayNightSpeed}" /></label>
     `;
   }
@@ -244,7 +248,8 @@ export class UIManager {
     const settlement = this.state.settlements.find((item) => item.id === settlementId);
     if (!settlement) return;
     this.state.selectedCivilizationId = settlement.civilizationId;
-    this.renderer.camera.centerOn({ x: settlement.centerX, y: settlement.centerY }, this.state.world);
+    this.state.selected = { kind: "settlement", id: settlement.id };
+    this.renderer.camera.centerOn({ x: settlement.centerX, y: settlement.centerY }, this.state.world, { animate: true, durationMs: 380, zoom: Math.max(0.9, this.renderer.camera.zoom) });
     this.update();
   }
 

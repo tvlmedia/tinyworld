@@ -56,4 +56,18 @@ describe("Camera", () => {
     expect(center.x).toBeCloseTo(800, 0);
     expect(center.y).toBeCloseTo(500, 0);
   });
+
+  it("keeps camera bounds valid on a 512 world", () => {
+    const camera = new Camera(createCanvas(1440, 900));
+    const world = createWorld(512, 512);
+    camera.fitToWorld(world);
+    camera.pan(-100000, -100000, world);
+    const bottomRight = camera.screenToWorld(1440, 900);
+    expect(bottomRight.x).toBeLessThanOrEqual(512);
+    expect(bottomRight.y).toBeLessThanOrEqual(512);
+    camera.pan(100000, 100000, world);
+    const topLeft = camera.screenToWorld(0, 0);
+    expect(topLeft.x).toBeGreaterThanOrEqual(0);
+    expect(topLeft.y).toBeGreaterThanOrEqual(0);
+  });
 });

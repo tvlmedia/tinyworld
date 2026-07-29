@@ -18,22 +18,65 @@ const COLORS: Record<TileType, string> = {
   burned: "#4f4b45"
 };
 
+const CHUNK_SIZE = 32;
+
 export class TileRenderer {
+  private chunkCache = new Map<string, HTMLCanvasElement>();
+
   draw(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, time: number): void {
     const bounds = camera.visibleTileBounds(state.world);
-    const size = TILE_SIZE * camera.zoom;
-    for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
-      for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
-        const tile = getTile(state.world, x, y);
-        if (!tile) continue;
-        const screen = camera.worldToScreen(x, y);
-        this.drawTile(ctx, state, tile, screen.x, screen.y, size, time);
-      }
-    }
+    this.drawCachedChunks(ctx, state, camera, bounds);
 
     if (state.debug.enabled && state.debug.showChunks) {
       this.drawChunks(ctx, camera, state);
     }
+  }
+
+  private drawCachedChunks(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    camera: Camera,
+    bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  ): void {
+    const minChunkX = Math.floor(bounds.minX / CHUNK_SIZE);
+    const minChunkY = Math.floor(bounds.minY / CHUNK_SIZE);
+    const maxChunkX = Math.floor(bounds.maxX / CHUNK_SIZE);
+    const maxChunkY = Math.floor(bounds.maxY / CHUNK_SIZE);
+    for (let chunkY = minChunkY; chunkY <= maxChunkY; chunkY += 1) {
+      for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX += 1) {
+        const canvas = this.chunkCanvas(state, chunkX, chunkY);
+        const worldX = chunkX * CHUNK_SIZE;
+        const worldY = chunkY * CHUNK_SIZE;
+        const screen = camera.worldToScreen(worldX, worldY);
+        const width = canvas.width * camera.zoom;
+        const height = canvas.height * camera.zoom;
+        ctx.drawImage(canvas, Math.floor(screen.x), Math.floor(screen.y), Math.ceil(width), Math.ceil(height));
+      }
+    }
+  }
+
+  private chunkCanvas(state: GameState, chunkX: number, chunkY: number): HTMLCanvasElement {
+    const key = `${state.world.version}:${state.weather.current}:${chunkX},${chunkY}`;
+    const cached = this.chunkCache.get(key);
+    if (cached) return cached;
+    if (this.chunkCache.size > 420) this.chunkCache.clear();
+    const widthTiles = Math.min(CHUNK_SIZE, state.world.width - chunkX * CHUNK_SIZE);
+    const heightTiles = Math.min(CHUNK_SIZE, state.world.height - chunkY * CHUNK_SIZE);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, widthTiles * TILE_SIZE);
+    canvas.height = Math.max(1, heightTiles * TILE_SIZE);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return canvas;
+    ctx.imageSmoothingEnabled = false;
+    for (let localY = 0; localY < heightTiles; localY += 1) {
+      for (let localX = 0; localX < widthTiles; localX += 1) {
+        const tile = getTile(state.world, chunkX * CHUNK_SIZE + localX, chunkY * CHUNK_SIZE + localY);
+        if (!tile) continue;
+        this.drawTile(ctx, state, tile, localX * TILE_SIZE, localY * TILE_SIZE, TILE_SIZE, 0);
+      }
+    }
+    this.chunkCache.set(key, canvas);
+    return canvas;
   }
 
   private drawTile(
@@ -196,11 +239,11 @@ export class TileRenderer {
   }
 
   private drawChunks(ctx: CanvasRenderingContext2D, camera: Camera, state: GameState): void {
-    const size = 16 * TILE_SIZE * camera.zoom;
+    const size = CHUNK_SIZE * TILE_SIZE * camera.zoom;
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 1;
-    for (let y = 0; y <= state.world.height; y += 16) {
-      for (let x = 0; x <= state.world.width; x += 16) {
+    for (let y = 0; y <= state.world.height; y += CHUNK_SIZE) {
+      for (let x = 0; x <= state.world.width; x += CHUNK_SIZE) {
         const screen = camera.worldToScreen(x, y);
         ctx.strokeRect(screen.x, screen.y, size, size);
       }

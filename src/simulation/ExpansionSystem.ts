@@ -1,6 +1,6 @@
 import { assignJobByIndex } from "../ai/Jobs";
 import { GameState, worldYear, createBuildingAt } from "../app/GameState";
-import { COLONIZATION, ROAD_NETWORK } from "../config/balanceConfig";
+import { COLONIZATION, MIN_SETTLEMENT_DISTANCE_TILES, ROAD_NETWORK } from "../config/balanceConfig";
 import { SETTLEMENT_PREFIXES, SETTLEMENT_SUFFIXES } from "../config/civilizationConfig";
 import { SETTLEMENT_TIER_LABELS, SETTLEMENT_TIER_RULES } from "../config/settlementConfig";
 import { Civilization, ColonistGroup, Settlement, SettlementTier } from "../entities/Civilization";
@@ -46,16 +46,20 @@ export function scoreExpansionLocation(state: GameState, civilization: Civilizat
   const tile = getTile(state.world, point.x, point.y);
   if (!tile || !isWalkableTile(tile) || tile.occupiedByBuildingId) return -Infinity;
   const nearestExisting = nearestSettlementDistance(state, point);
-  if (nearestExisting < COLONIZATION.minDistance) return -Infinity;
+  if (nearestExisting < MIN_SETTLEMENT_DISTANCE_TILES) return -Infinity;
   const distance = Math.hypot(point.x - origin.centerX, point.y - origin.centerY);
   if (distance > maxColonizationDistance(state)) return -Infinity;
 
   const fertility = nearbyAverage(state, point, 5, (candidate) => candidate.fertility);
+  const walkable = nearbyCount(state, point, 6, (candidate) => isWalkableTile(candidate) && !candidate.occupiedByBuildingId);
+  const buildableCore = nearbyCount(state, point, 4, (candidate) => isWalkableTile(candidate) && !candidate.occupiedByBuildingId && candidate.type !== "rock");
   const wood = nearbyCount(state, point, 7, (candidate) => candidate.type === "forest" && candidate.resourceAmount > 0);
   const stone = nearbyCount(state, point, 7, (candidate) => candidate.type === "rock" && candidate.resourceAmount > 0);
   const water = nearbyCount(state, point, 5, (candidate) => isWater(candidate.type));
   const mountains = nearbyCount(state, point, 4, (candidate) => candidate.type === "mountain");
+  const rough = nearbyCount(state, point, 4, (candidate) => candidate.type === "rock" || candidate.type === "mountain");
   const burned = nearbyCount(state, point, 5, (candidate) => candidate.type === "burned");
+  if (walkable < 80 || buildableCore < 34 || water > 46 || mountains > 3) return -Infinity;
   const coastBonus = civilization.traits.includes("seafaring") && water > 0 ? 12 : 0;
   const expansionBonus = civilization.traits.includes("expansionist") ? 10 : 0;
   const agriculturalBonus = civilization.traits.includes("agricultural") ? fertility * 16 : 0;
@@ -67,12 +71,14 @@ export function scoreExpansionLocation(state: GameState, civilization: Civilizat
     Math.min(wood, 8) * 2.4 +
     Math.min(stone, 7) * 2.2 +
     Math.min(water, 4) * 2 +
+    Math.min(buildableCore, 56) * 0.35 +
     coastBonus +
     expansionBonus +
     agriculturalBonus -
     mountains * 4 -
+    rough * 1.2 -
     burned * 3 -
-    distance * 0.5 -
+    distance * 0.34 -
     hostilePenalty
   );
 }
@@ -298,7 +304,7 @@ function colonizationOriginScore(settlement: Settlement): number {
 }
 
 function maxColonizationDistance(state: GameState): number {
-  return Math.min(COLONIZATION.maxDistance, Math.max(COLONIZATION.minDistance + 8, Math.floor(state.world.width * 0.42)));
+  return Math.max(MIN_SETTLEMENT_DISTANCE_TILES + 12, Math.min(Math.max(COLONIZATION.maxDistance, state.world.width * 0.28), Math.floor(state.world.width * 0.42)));
 }
 
 export function connectSettlementsWithRoad(state: GameState, a: Settlement, b: Settlement): number {

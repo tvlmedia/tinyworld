@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createNewGameState } from "../src/app/GameState";
+import { SaveManager } from "../src/persistence/SaveManager";
 import { deserializeWorld, serializeGame } from "../src/persistence/Serialization";
 import { migrateSaveGame } from "../src/persistence/SaveMigrations";
 
@@ -15,6 +16,14 @@ describe("savegame serialization", () => {
 
   it("migrates version zero saves", () => {
     const save = serializeGame(createNewGameState("migration", 64));
-    expect(migrateSaveGame({ ...save, version: 0 }).version).toBe(3);
+    expect(migrateSaveGame({ ...save, version: 0 }).version).toBe(4);
+  });
+
+  it("loads old 128 worlds without scaling them to the new default", () => {
+    const save = serializeGame(createNewGameState("old-small-world", 128));
+    const state = new SaveManager().restoreState({ ...save, version: 3 });
+    expect(state.world.width).toBe(128);
+    expect(state.world.height).toBe(128);
+    expect(state.world.tiles).toHaveLength(128 * 128);
   });
 });

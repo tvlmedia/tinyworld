@@ -10,13 +10,41 @@ export class Camera {
   x = 0;
   y = 0;
   zoom = 2;
+  private animation?: {
+    startX: number;
+    startY: number;
+    targetX: number;
+    targetY: number;
+    startZoom: number;
+    targetZoom: number;
+    startedAt: number;
+    durationMs: number;
+  };
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
-  centerOn(point: Point, world: World): void {
+  centerOn(point: Point, world: World, options: { animate?: boolean; durationMs?: number; zoom?: number } = {}): void {
+    const targetZoom = options.zoom ?? this.zoom;
     const viewport = this.viewportSize();
-    this.x = point.x * TILE_SIZE - viewport.width / (2 * this.zoom);
-    this.y = point.y * TILE_SIZE - viewport.height / (2 * this.zoom);
+    const targetX = point.x * TILE_SIZE - viewport.width / (2 * targetZoom);
+    const targetY = point.y * TILE_SIZE - viewport.height / (2 * targetZoom);
+    if (options.animate) {
+      this.animation = {
+        startX: this.x,
+        startY: this.y,
+        targetX,
+        targetY,
+        startZoom: this.zoom,
+        targetZoom,
+        startedAt: performance.now(),
+        durationMs: options.durationMs ?? 380
+      };
+      return;
+    }
+    this.animation = undefined;
+    this.zoom = targetZoom;
+    this.x = targetX;
+    this.y = targetY;
     this.clampToWorld(world);
   }
 
@@ -40,12 +68,14 @@ export class Camera {
   }
 
   pan(dx: number, dy: number, world: World): void {
+    this.animation = undefined;
     this.x -= dx / this.zoom;
     this.y -= dy / this.zoom;
     this.clampToWorld(world);
   }
 
   setZoom(nextZoom: number, world: World, screenPoint?: Point): void {
+    this.animation = undefined;
     const before = screenPoint ? this.screenToWorld(screenPoint.x, screenPoint.y) : undefined;
     this.zoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
     if (before && screenPoint) {
@@ -99,6 +129,18 @@ export class Camera {
       viewportHeightInWorldPixels >= worldHeight
         ? (worldHeight - viewportHeightInWorldPixels) / 2
         : clamp(this.y, 0, worldHeight - viewportHeightInWorldPixels);
+  }
+
+  updateAnimation(world: World, now = performance.now()): void {
+    if (!this.animation) return;
+    const elapsed = now - this.animation.startedAt;
+    const t = clamp(elapsed / this.animation.durationMs, 0, 1);
+    const eased = t * t * (3 - 2 * t);
+    this.zoom = this.animation.startZoom + (this.animation.targetZoom - this.animation.startZoom) * eased;
+    this.x = this.animation.startX + (this.animation.targetX - this.animation.startX) * eased;
+    this.y = this.animation.startY + (this.animation.targetY - this.animation.startY) * eased;
+    this.clampToWorld(world);
+    if (t >= 1) this.animation = undefined;
   }
 
   private viewportSize(): { width: number; height: number } {

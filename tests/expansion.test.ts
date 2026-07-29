@@ -9,10 +9,11 @@ import { getTile } from "../src/world/World";
 
 describe("settlement expansion", () => {
   it("offers larger worlds than the original 128 map", () => {
-    expect(DEFAULT_WORLD_SIZE).toBeGreaterThan(128);
+    expect(DEFAULT_WORLD_SIZE).toBe(512);
+    expect(WORLD_SIZES).toContain(128);
     expect(WORLD_SIZES).toContain(256);
-    expect(WORLD_SIZES).toContain(320);
-    expect(createNewGameState("large-world", 256).world.width).toBe(256);
+    expect(WORLD_SIZES).toContain(512);
+    expect(createNewGameState("large-world", 512).world.width).toBe(512);
   });
 
   it("upgrades settlements with buildings, food security, defense and connections", () => {
@@ -40,18 +41,19 @@ describe("settlement expansion", () => {
   });
 
   it("scores fertile resource-rich expansion sites above bad terrain", () => {
-    const state = createNewGameState("expansion-score", 64);
+    const state = createNewGameState("expansion-score", 128);
     const origin = state.settlements[0];
     const civ = state.civilizations[0];
-    const good = { x: origin.centerX + 22, y: origin.centerY };
-    const bad = { x: origin.centerX - 22, y: origin.centerY };
-    for (let y = good.y - 3; y <= good.y + 3; y += 1) {
-      for (let x = good.x - 3; x <= good.x + 3; x += 1) {
+    const good = { x: origin.centerX + 54, y: origin.centerY };
+    const bad = { x: origin.centerX - 54, y: origin.centerY };
+    for (let y = good.y - 7; y <= good.y + 7; y += 1) {
+      for (let x = good.x - 7; x <= good.x + 7; x += 1) {
         const tile = getTile(state.world, x, y);
         if (tile) {
-          tile.type = x === good.x ? "forest" : "grass";
+          tile.type = Math.abs(x - good.x) > 4 ? "forest" : "grass";
           tile.fertility = 0.9;
           tile.resourceAmount = 4;
+          tile.occupiedByBuildingId = undefined;
         }
       }
     }
@@ -59,6 +61,16 @@ describe("settlement expansion", () => {
     badTile.type = "burned";
     badTile.fertility = 0.1;
     expect(scoreExpansionLocation(state, civ, origin, good)).toBeGreaterThan(scoreExpansionLocation(state, civ, origin, bad));
+  });
+
+  it("rejects settlement sites closer than 50 tiles to an existing center", () => {
+    const state = createNewGameState("minimum-distance", 128);
+    const origin = state.settlements[0];
+    const civ = state.civilizations[0];
+    const tile = getTile(state.world, origin.centerX + 32, origin.centerY)!;
+    tile.type = "grass";
+    tile.occupiedByBuildingId = undefined;
+    expect(scoreExpansionLocation(state, civ, origin, { x: origin.centerX + 32, y: origin.centerY })).toBe(-Infinity);
   });
 
   it("turns a traveling colonist group into a physical settlement", () => {
