@@ -42,9 +42,15 @@ function createWorld(width: number, height: number): World {
 describe("Camera", () => {
   it("can zoom far enough out for an overview", () => {
     const camera = new Camera(createCanvas(1440, 900));
-    const world = createWorld(128, 128);
-    camera.setZoom(0.05, world);
-    expect(camera.zoom).toBeLessThanOrEqual(0.2);
+    const world = createWorld(512, 512);
+    camera.setZoom(0.01, world);
+    expect(camera.zoom).toBe(0.05);
+    const topLeft = camera.worldToScreen(0, 0);
+    const bottomRight = camera.worldToScreen(world.width, world.height);
+    expect(topLeft.x).toBeGreaterThan(0);
+    expect(topLeft.y).toBeGreaterThan(0);
+    expect(bottomRight.x).toBeLessThan(1440);
+    expect(bottomRight.y).toBeLessThan(900);
   });
 
   it("centers the world when the viewport is larger than the zoomed map", () => {
@@ -61,6 +67,7 @@ describe("Camera", () => {
     const camera = new Camera(createCanvas(1440, 900));
     const world = createWorld(512, 512);
     camera.fitToWorld(world);
+    camera.setZoom(0.3, world);
     camera.pan(-100000, -100000, world);
     const bottomRight = camera.screenToWorld(1440, 900);
     expect(bottomRight.x).toBeLessThanOrEqual(512);
@@ -69,5 +76,17 @@ describe("Camera", () => {
     const topLeft = camera.screenToWorld(0, 0);
     expect(topLeft.x).toBeGreaterThanOrEqual(0);
     expect(topLeft.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it("fits a complete 512 world inside the viewport", () => {
+    const camera = new Camera(createCanvas(1440, 900));
+    const world = createWorld(512, 512);
+    camera.fitToWorld(world);
+    const topLeft = camera.worldToScreen(0, 0);
+    const bottomRight = camera.worldToScreen(world.width, world.height);
+    expect(topLeft.x).toBeGreaterThanOrEqual(0);
+    expect(topLeft.y).toBeGreaterThanOrEqual(0);
+    expect(bottomRight.x).toBeLessThanOrEqual(1440);
+    expect(bottomRight.y).toBeLessThanOrEqual(900);
   });
 });

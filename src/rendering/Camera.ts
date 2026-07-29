@@ -2,7 +2,7 @@ import { TILE_SIZE } from "../app/Config";
 import { Point, clamp } from "../utils/MathUtils";
 import { World } from "../world/World";
 
-const MIN_ZOOM = 0.18;
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 6;
 const OVERVIEW_MARGIN = 72;
 

@@ -119,7 +119,7 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
     version: 0
   };
 
-  carveSeaStraits(world, seedHash);
+  carveSeaStraits(world);
   addMountainRanges(world, seedHash);
   carveRivers(world, seedHash);
   addBeaches(world);
@@ -128,7 +128,7 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
   return world;
 }
 
-function carveSeaStraits(world: World, seedHash: number): void {
+function carveSeaStraits(world: World): void {
   if (world.width < 256) return;
   const rng = new SeededRandom(`${world.seed}:straits`);
   const channels = 1;
@@ -139,18 +139,23 @@ function carveSeaStraits(world: World, seedHash: number): void {
     const phase = rng.float(0, Math.PI * 2);
     const width = Math.max(3, Math.floor(world.width / 90));
     const length = vertical ? world.height : world.width;
+    let previousCenter = Math.round(base + Math.sin(phase) * amplitude);
     for (let step = 0; step < length; step += 1) {
-      const wave =
-        Math.sin((step / length) * Math.PI * 2.2 + phase) * amplitude +
-        (hash2D(step, channel, seedHash + 8011) - 0.5) * width * 1.8;
-      const center = Math.floor(base + wave);
-      for (let offset = -width; offset <= width; offset += 1) {
+      const progress = step / Math.max(1, length - 1);
+      const broadMeander = Math.sin(progress * Math.PI * 2.2 + phase) * amplitude;
+      const smallMeander = Math.sin(progress * Math.PI * 7.4 + phase * 0.63) * width * 0.75;
+      const targetCenter = Math.round(base + broadMeander + smallMeander);
+      const center =
+        step === 0 ? targetCenter : previousCenter + clamp(targetCenter - previousCenter, -1, 1);
+      previousCenter = center;
+      const localWidth = width + (Math.sin(progress * Math.PI * 5 + phase) > 0.55 ? 1 : 0);
+      for (let offset = -localWidth; offset <= localWidth; offset += 1) {
         const x = vertical ? center + offset : step;
         const y = vertical ? step : center + offset;
         const tile = getTile(world, x, y);
         if (!tile) continue;
-        tile.type = Math.abs(offset) < Math.max(1, width - 1) ? "deepWater" : "water";
-        tile.elevation = Math.min(tile.elevation, Math.abs(offset) < width - 1 ? 0.2 : 0.3);
+        tile.type = Math.abs(offset) < Math.max(1, localWidth - 1) ? "deepWater" : "water";
+        tile.elevation = Math.min(tile.elevation, Math.abs(offset) < localWidth - 1 ? 0.2 : 0.3);
         tile.resourceAmount = 0;
       }
     }

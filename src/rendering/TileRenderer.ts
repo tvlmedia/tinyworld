@@ -99,7 +99,7 @@ export class TileRenderer {
       case "water":
       case "deepWater":
         this.drawWater(ctx, tile, screenX, screenY, size, time);
-        if (touchesLand(state, tile)) this.drawFoam(ctx, screenX, screenY, size, time);
+        this.drawShoreline(ctx, state, tile, screenX, screenY, size);
         break;
       case "grass":
         this.drawGrassDetails(ctx, tile, screenX, screenY, size);
@@ -141,9 +141,28 @@ export class TileRenderer {
     }
   }
 
-  private drawFoam(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number): void {
-    ctx.fillStyle = `rgba(255,255,240,${0.18 + Math.sin(time * 0.004) * 0.05})`;
-    ctx.fillRect(x, y + size * 0.08, size, Math.max(1, size * 0.08));
+  private drawShoreline(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    tile: Tile,
+    x: number,
+    y: number,
+    size: number
+  ): void {
+    const edge = Math.max(1, size * 0.055);
+    const inset = size * 0.05;
+    ctx.fillStyle = "rgba(225, 247, 246, 0.2)";
+    const shores = [
+      { land: isLandTile(state, tile.x, tile.y - 1), rect: [inset, 0, size - inset * 2, edge] },
+      { land: isLandTile(state, tile.x + 1, tile.y), rect: [size - edge, inset, edge, size - inset * 2] },
+      { land: isLandTile(state, tile.x, tile.y + 1), rect: [inset, size - edge, size - inset * 2, edge] },
+      { land: isLandTile(state, tile.x - 1, tile.y), rect: [0, inset, edge, size - inset * 2] }
+    ] as const;
+    for (const shore of shores) {
+      if (!shore.land) continue;
+      const [offsetX, offsetY, width, height] = shore.rect;
+      ctx.fillRect(x + offsetX, y + offsetY, width, height);
+    }
   }
 
   private drawGrassDetails(ctx: CanvasRenderingContext2D, tile: Tile, x: number, y: number, size: number): void {
@@ -251,14 +270,9 @@ export class TileRenderer {
   }
 }
 
-function touchesLand(state: GameState, tile: Tile): boolean {
-  const neighbors = [
-    getTile(state.world, tile.x + 1, tile.y),
-    getTile(state.world, tile.x - 1, tile.y),
-    getTile(state.world, tile.x, tile.y + 1),
-    getTile(state.world, tile.x, tile.y - 1)
-  ];
-  return neighbors.some((neighbor) => neighbor && !isWater(neighbor.type));
+function isLandTile(state: GameState, x: number, y: number): boolean {
+  const tile = getTile(state.world, x, y);
+  return !!tile && !isWater(tile.type);
 }
 
 function shade(hex: string, amount: number): string {
