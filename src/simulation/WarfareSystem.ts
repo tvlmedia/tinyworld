@@ -1,5 +1,6 @@
 import { GameState, worldYear } from "../app/GameState";
 import { WARFARE } from "../config/warfareConfig";
+import { FIRE_BALANCE } from "../config/fireConfig";
 import { Army, ArmyUnitType, Civilization, Settlement, War, WarGoal } from "../entities/Civilization";
 import { clamp, distance } from "../utils/MathUtils";
 import { forceTerritoryRefresh } from "./CivilizationSystem";
@@ -390,11 +391,17 @@ function captureSettlement(state: GameState, army: Army, target: Settlement, war
   target.stability = clamp(target.stability - 24, 0, 100);
   target.happiness = clamp(target.happiness - 18, 0, 100);
   target.connectedSettlementIds = target.connectedSettlementIds.filter((id) => state.settlements.some((settlement) => settlement.id === id && settlement.civilizationId === newCivilization.id));
+  let captureIgnitions = 0;
   for (const building of state.buildings) {
     if (building.settlementId !== target.id) continue;
     building.civilizationId = newCivilization.id;
-    if (state.rng.chance(WARFARE.raidFireChance) && (building.type === "house" || building.type === "storage" || building.type === "market")) {
-      igniteTile(state, building.x, building.y, 0.9);
+    if (
+      captureIgnitions < FIRE_BALANCE.captureMaxIgnitions &&
+      state.rng.chance(WARFARE.raidFireChance) &&
+      (building.type === "house" || building.type === "storage" || building.type === "market") &&
+      igniteTile(state, building.x, building.y, 0.9)
+    ) {
+      captureIgnitions += 1;
     }
   }
   for (const villager of state.villagers) {

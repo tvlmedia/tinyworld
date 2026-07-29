@@ -198,6 +198,13 @@ describe("settlement recovery", () => {
     ).toHaveLength(1);
   });
 
+  it("does not let ordinary riots start building fires", () => {
+    const { state, settlement } = recoveryState("recovery-riot-fire");
+    for (let count = 0; count < 8; count += 1) triggerRiot(state, settlement, 100);
+
+    expect(state.fires).toHaveLength(0);
+  });
+
   it("eventually resumes food production with living residents and valid resources", () => {
     const { state, settlement } = recoveryState("recovery-resume");
     state.resources.food = 1;

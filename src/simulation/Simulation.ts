@@ -17,6 +17,7 @@ import { updateTechnology } from "./TechnologySystem";
 import { updateTime } from "./TimeSystem";
 import { updateWarfare } from "./WarfareSystem";
 import { updateWeather } from "./WeatherSystem";
+import { FIRE_BALANCE } from "../config/fireConfig";
 import { Building } from "../entities/Building";
 import { getTile } from "../world/World";
 
@@ -24,6 +25,7 @@ export class Simulation {
   private housingElapsed = 0;
   private civilizationElapsed = 0;
   private buildingEffectsElapsed = 0;
+  private fireElapsed = 0;
 
   update(state: GameState, dt: number): void {
     const started = performance.now();
@@ -50,7 +52,11 @@ export class Simulation {
     updateDiplomacyAndTrade(state, dt);
     updateWarfare(state, dt);
     updateStability(state, dt);
-    updateFire(state, dt);
+    this.fireElapsed += dt;
+    if (this.fireElapsed >= FIRE_BALANCE.simulationInterval) {
+      updateFire(state, this.fireElapsed);
+      this.fireElapsed = 0;
+    }
     updateEmergencyResponse(state, dt);
     this.housingElapsed += dt;
     if (this.housingElapsed >= 2) {

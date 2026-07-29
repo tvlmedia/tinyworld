@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createBuildingAt, createNewGameState } from "../src/app/GameState";
+import { FIRE_BALANCE } from "../src/config/fireConfig";
 import { igniteTile, updateFire } from "../src/simulation/FireSystem";
 import { getTile } from "../src/world/World";
 
@@ -30,5 +31,30 @@ describe("FireSystem", () => {
     expect(state.villagers.some((villager) => residents.some((resident) => resident.id === villager.id))).toBe(false);
     expect(getTile(state.world, house.x, house.y)?.occupiedByBuildingId).toBe(house.id);
     expect(getTile(state.world, house.x, house.y)?.type).toBe("burned");
+  });
+
+  it("caps active fire cells to keep large incidents bounded", () => {
+    const state = createNewGameState("bounded-fire", 64);
+    for (let y = 2; y < state.world.height - 2; y += 1) {
+      for (let x = 2; x < state.world.width - 2; x += 1) {
+        const tile = getTile(state.world, x, y);
+        if (tile) tile.type = "grass";
+        igniteTile(state, x, y);
+      }
+    }
+
+    expect(state.fires).toHaveLength(FIRE_BALANCE.maxActiveCells);
+
+    state.fires.push(
+      ...Array.from({ length: 20 }, (_, index) => ({
+        x: index + 2,
+        y: 2,
+        intensity: 0.8,
+        fuel: 5,
+        spreadTimer: 2
+      }))
+    );
+    updateFire(state, 0.1);
+    expect(state.fires.length).toBeLessThanOrEqual(FIRE_BALANCE.maxActiveCells);
   });
 });

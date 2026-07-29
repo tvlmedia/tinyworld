@@ -1,6 +1,7 @@
 import { GameState, worldYear } from "../app/GameState";
 import { CIVILIZATION_PREFIXES, CIVILIZATION_SUFFIXES } from "../config/civilizationConfig";
 import { STABILITY } from "../config/stabilityConfig";
+import { FIRE_BALANCE } from "../config/fireConfig";
 import { RECOVERY } from "../config/recoveryConfig";
 import { Civilization, DiplomaticRelation, Settlement, War, createSettlementRecovery } from "../entities/Civilization";
 import { clamp } from "../utils/MathUtils";
@@ -129,9 +130,12 @@ export function collapseCivilization(state: GameState, civilization: Civilizatio
     settlement.happiness = 0;
     const casualties = Math.min(settlement.population, Math.max(1, Math.round(settlement.population * 0.2)));
     removeSettlementPopulation(state, settlement, casualties);
+    let ignitions = 0;
     for (const building of state.buildings.filter((item) => item.settlementId === settlement.id)) {
       building.health = Math.min(building.health, 22);
-      if (state.rng.chance(0.18)) igniteTile(state, building.x, building.y, 0.7);
+      if (ignitions < FIRE_BALANCE.collapseMaxIgnitions && state.rng.chance(0.18) && igniteTile(state, building.x, building.y, 0.7)) {
+        ignitions += 1;
+      }
     }
   }
   state.civilizations = state.civilizations.filter((item) => item.id !== civilization.id);
@@ -150,22 +154,32 @@ export function collapseCivilization(state: GameState, civilization: Civilizatio
 export function triggerRiot(state: GameState, settlement: Settlement, unrest: number): void {
   const casualties = unrest > 100 ? Math.max(1, Math.round(settlement.population * 0.04)) : 0;
   if (casualties > 0) removeSettlementPopulation(state, settlement, casualties);
-  const vulnerableBuilding = state.buildings.find(
-    (building) => building.settlementId === settlement.id && (building.type === "market" || building.type === "storage" || building.type === "house")
-  );
-  if (vulnerableBuilding) {
-    vulnerableBuilding.health = Math.max(8, vulnerableBuilding.health - unrest * 0.35);
-    if (unrest > 92) igniteTile(state, vulnerableBuilding.x, vulnerableBuilding.y, 0.65);
-  }
-  const recovery = settlement.recovery ?? (settlement.recovery = createSettlementRecovery());
-  recovery.recentCrisisTimer = Math.max(recovery.recentCrisisTimer, RECOVERY.recentCrisisDuration);
-  recovery.state = "emergency";
   const recentRiot = state.historicEvents.some(
     (event) =>
       event.type === "rebellion" &&
       event.settlementId === settlement.id &&
       event.year >= worldYear(state) - 2
   );
+  const vulnerableBuilding = state.buildings.find(
+    (building) => building.settlementId === settlement.id && (building.type === "market" || building.type === "storage" || building.type === "house")
+  );
+  if (vulnerableBuilding) {
+    vulnerableBuilding.health = Math.max(8, vulnerableBuilding.health - unrest * 0.22);
+    const activeLocalFire = state.fires.some(
+      (fire) => Math.hypot(fire.x - settlement.centerX, fire.y - settlement.centerY) < 24
+    );
+    if (
+      unrest >= FIRE_BALANCE.riotArsonThreshold &&
+      !recentRiot &&
+      !activeLocalFire &&
+      state.rng.chance(FIRE_BALANCE.riotArsonChance)
+    ) {
+      igniteTile(state, vulnerableBuilding.x, vulnerableBuilding.y, 0.55);
+    }
+  }
+  const recovery = settlement.recovery ?? (settlement.recovery = createSettlementRecovery());
+  recovery.recentCrisisTimer = Math.max(recovery.recentCrisisTimer, RECOVERY.recentCrisisDuration);
+  recovery.state = "emergency";
   if (!recentRiot) {
     addHistoricalEvent(state, "rebellion", `${settlement.name} kende rellen door voedseltekort en onvrede.`, {
       civilizationId: settlement.civilizationId,

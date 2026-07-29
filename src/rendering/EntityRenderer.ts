@@ -14,7 +14,7 @@ export class EntityRenderer {
       .sort((a, b) => a.y - b.y);
     for (const building of orderedBuildings) this.drawBuilding(ctx, state, camera, building, time);
     for (const fire of state.fires.filter((fire) => fire.x >= bounds.minX - 3 && fire.x <= bounds.maxX + 3 && fire.y >= bounds.minY - 3 && fire.y <= bounds.maxY + 3)) {
-      this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity, time);
+      this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity);
     }
     const selectedVillagerId = state.selected.kind === "villager" ? state.selected.id : undefined;
     const villagerStride =
@@ -107,7 +107,7 @@ export class EntityRenderer {
     if (building.type === "campfire") {
       ctx.fillStyle = "#6e4b34";
       ctx.fillRect(x + width * 0.18, y + height * 0.58, width * 0.64, height * 0.15);
-      this.drawFire(ctx, { worldToScreen: () => ({ x, y }) }, building.x + 0.48, building.y + 0.42, 0.65, time, width);
+      this.drawFire(ctx, { worldToScreen: () => ({ x, y }) }, building.x + 0.48, building.y + 0.42, 0.65, width);
       return;
     }
 
@@ -505,30 +505,25 @@ export class EntityRenderer {
     tileX: number,
     tileY: number,
     intensity: number,
-    time: number,
     overrideSize?: number
   ): void {
     const screen = camera.worldToScreen(tileX, tileY);
     const size = overrideSize ?? TILE_SIZE * (camera.zoom ?? 1);
-    const flame = Math.sin(time * 0.02 + tileX) * size * 0.06;
-    ctx.fillStyle = "rgba(255, 92, 35, 0.86)";
-    ctx.beginPath();
-    ctx.moveTo(screen.x + size * 0.48, screen.y + size * (0.18 - intensity * 0.08));
-    ctx.lineTo(screen.x + size * (0.26 + flame / size), screen.y + size * 0.78);
-    ctx.lineTo(screen.x + size * 0.72, screen.y + size * 0.78);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 224, 91, 0.78)";
-    ctx.beginPath();
-    ctx.moveTo(screen.x + size * 0.5, screen.y + size * 0.34);
-    ctx.lineTo(screen.x + size * 0.38, screen.y + size * 0.78);
-    ctx.lineTo(screen.x + size * 0.62, screen.y + size * 0.78);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "rgba(75, 72, 68, 0.35)";
-    ctx.beginPath();
-    ctx.arc(screen.x + size * 0.58, screen.y + size * 0.1 - (time * 0.015) % 12, size * 0.16, 0, Math.PI * 2);
-    ctx.fill();
+    const x = Math.floor(screen.x + size * 0.22);
+    const y = Math.floor(screen.y + size * Math.max(0.12, 0.3 - intensity * 0.06));
+    const width = Math.max(2, Math.ceil(size * 0.56));
+    const height = Math.max(2, Math.ceil(size * 0.52));
+    ctx.fillStyle = "rgba(219, 68, 35, 0.9)";
+    ctx.fillRect(x, y, width, height);
+    if (size >= 5) {
+      ctx.fillStyle = "rgba(255, 204, 70, 0.9)";
+      ctx.fillRect(
+        Math.floor(screen.x + size * 0.38),
+        Math.floor(screen.y + size * 0.46),
+        Math.max(1, Math.ceil(size * 0.24)),
+        Math.max(1, Math.ceil(size * 0.28))
+      );
+    }
   }
 
   private drawTravelGroup(

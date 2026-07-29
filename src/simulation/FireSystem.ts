@@ -1,11 +1,20 @@
 import { FireState, GameState, occupyBuildingTiles, releaseBuildingTiles } from "../app/GameState";
+import { FIRE_BALANCE } from "../config/fireConfig";
 import { BUILDING_DEFINITIONS, Building } from "../entities/Building";
+import { Villager } from "../entities/Villager";
 import { neighbors4 } from "../utils/MathUtils";
 import { getTile } from "../world/World";
 import { addEvent } from "./EventSystem";
 
 export function updateFire(state: GameState, dt: number): void {
+  if (state.fires.length > FIRE_BALANCE.maxActiveCells) {
+    state.fires = state.fires.slice(0, FIRE_BALANCE.maxActiveCells);
+  }
   const newFires: FireState[] = [];
+  const fireKeys = new Set(state.fires.map((fire) => fireKey(fire.x, fire.y)));
+  const villagersByTile = indexVillagersByTile(state.villagers);
+  const buildingsById = new Map(state.buildings.map((building) => [building.id, building]));
+  let spreadCount = 0;
   for (const fire of state.fires) {
     const tile = getTile(state.world, fire.x, fire.y);
     if (!tile) continue;
@@ -16,13 +25,18 @@ export function updateFire(state: GameState, dt: number): void {
     fire.fuel -= fire.intensity * dt * 0.16;
     fire.spreadTimer -= dt;
 
-    if (fire.spreadTimer <= 0 && fire.intensity > 0.4) {
+    if (
+      fire.spreadTimer <= 0 &&
+      fire.intensity > 0.4 &&
+      state.fires.length + newFires.length < FIRE_BALANCE.maxActiveCells &&
+      spreadCount < FIRE_BALANCE.maxNewCellsPerUpdate
+    ) {
       fire.spreadTimer = drought ? 2.2 : 4.2;
-      spreadFire(state, fire, newFires);
+      spreadCount += spreadFire(state, fire, newFires, fireKeys, FIRE_BALANCE.maxNewCellsPerUpdate - spreadCount);
     }
 
-    damageBuildingsAt(state, fire, dt);
-    damageVillagersAt(state, fire, dt);
+    damageBuildingsAt(state, fire, dt, buildingsById);
+    damageVillagersAt(state, fire, dt, villagersByTile);
 
     if (fire.fuel <= 0 || fire.intensity <= 0.03) {
       if (tile.type === "forest" || tile.type === "grass" || tile.type === "farmland") {
@@ -43,6 +57,7 @@ export function updateFire(state: GameState, dt: number): void {
 export function igniteTile(state: GameState, x: number, y: number, intensity = 0.8): boolean {
   const tile = getTile(state.world, x, y);
   if (!tile || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain") return false;
+  if (state.fires.length >= FIRE_BALANCE.maxActiveCells) return false;
   if (state.fires.some((fire) => fire.x === x && fire.y === y)) return false;
   const fuel = fireFuelForTile(state, x, y);
   state.fires.push({ x, y, intensity, fuel, spreadTimer: 2 });
@@ -57,46 +72,87 @@ export function clearAllFires(state: GameState): void {
   state.fires = [];
 }
 
-function spreadFire(state: GameState, fire: FireState, newFires: FireState[]): void {
-  const baseSpreadChance = state.weather.current === "drought" ? 0.55 : state.weather.current === "rain" ? 0.06 : 0.25;
+function spreadFire(
+  state: GameState,
+  fire: FireState,
+  newFires: FireState[],
+  fireKeys: Set<string>,
+  remainingBudget: number
+): number {
+  const baseSpreadChance =
+    state.weather.current === "drought"
+      ? FIRE_BALANCE.droughtSpreadChance
+      : state.weather.current === "rain"
+        ? FIRE_BALANCE.rainSpreadChance
+        : FIRE_BALANCE.normalSpreadChance;
   const spreadChance = baseSpreadChance * fireSpreadMultiplier(state, fire.x, fire.y);
+  let added = 0;
   for (const neighbor of neighbors4(fire)) {
+    if (added >= remainingBudget || state.fires.length + newFires.length >= FIRE_BALANCE.maxActiveCells) break;
     if (!state.rng.chance(spreadChance)) continue;
     const tile = getTile(state.world, neighbor.x, neighbor.y);
     if (!tile || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain") continue;
-    if (state.fires.some((existing) => existing.x === neighbor.x && existing.y === neighbor.y)) continue;
-    if (newFires.some((existing) => existing.x === neighbor.x && existing.y === neighbor.y)) continue;
+    const key = fireKey(neighbor.x, neighbor.y);
+    if (fireKeys.has(key)) continue;
     const fuel = fireFuelForTile(state, neighbor.x, neighbor.y);
     newFires.push({ x: neighbor.x, y: neighbor.y, intensity: fire.intensity * 0.55, fuel, spreadTimer: 3 });
+    fireKeys.add(key);
+    added += 1;
   }
+  return added;
 }
 
-function damageBuildingsAt(state: GameState, fire: FireState, dt: number): void {
-  const destroyed: Building[] = [];
-  for (const building of state.buildings) {
-    if (building.status !== "complete") continue;
-    const inside = fire.x >= building.x && fire.y >= building.y && fire.x < building.x + building.width && fire.y < building.y + building.height;
-    if (!inside) continue;
-    const resistance = building.visualEra === "stone" || building.visualEra === "industry" ? 0.58 : 1;
-    building.health -= fire.intensity * dt * 3.4 * resistance;
-    if (building.health <= 0) {
-      building.health = 0;
-      destroyed.push(building);
+function damageBuildingsAt(
+  state: GameState,
+  fire: FireState,
+  dt: number,
+  buildingsById: Map<string, Building>
+): void {
+  const buildingId = getTile(state.world, fire.x, fire.y)?.occupiedByBuildingId;
+  const building = buildingId ? buildingsById.get(buildingId) : undefined;
+  if (!building || building.status !== "complete") return;
+  const resistance = building.visualEra === "stone" || building.visualEra === "industry" ? 0.58 : 1;
+  building.health -= fire.intensity * dt * 3.4 * resistance;
+  if (building.health > 0) return;
+  building.health = 0;
+  destroyBuilding(state, building, fire);
+}
+
+function damageVillagersAt(
+  state: GameState,
+  fire: FireState,
+  dt: number,
+  villagersByTile: Map<string, Villager[]>
+): void {
+  const casualties = new Set<string>();
+  for (let y = fire.y - 1; y <= fire.y + 1; y += 1) {
+    for (let x = fire.x - 1; x <= fire.x + 1; x += 1) {
+      for (const villager of villagersByTile.get(fireKey(x, y)) ?? []) {
+        if (villager.health <= 0) continue;
+        const d = Math.hypot(villager.x - (fire.x + 0.5), villager.y - (fire.y + 0.5));
+        if (d > 1.05 + fire.intensity * 0.25) continue;
+        villager.health -= fire.intensity * dt * 9;
+        villager.happiness = Math.max(0, villager.happiness - fire.intensity * dt * 4);
+        if (villager.health <= 0) casualties.add(villager.id);
+      }
     }
   }
-  for (const building of destroyed) destroyBuilding(state, building, fire);
+  removeCasualties(state, casualties, "kwam om in de brand.");
 }
 
-function damageVillagersAt(state: GameState, fire: FireState, dt: number): void {
-  const casualties = new Set<string>();
-  for (const villager of state.villagers) {
-    const d = Math.hypot(villager.x - (fire.x + 0.5), villager.y - (fire.y + 0.5));
-    if (d > 1.05 + fire.intensity * 0.25) continue;
-    villager.health -= fire.intensity * dt * 9;
-    villager.happiness = Math.max(0, villager.happiness - fire.intensity * dt * 4);
-    if (villager.health <= 0) casualties.add(villager.id);
+function indexVillagersByTile(villagers: Villager[]): Map<string, Villager[]> {
+  const byTile = new Map<string, Villager[]>();
+  for (const villager of villagers) {
+    const key = fireKey(Math.floor(villager.x), Math.floor(villager.y));
+    const bucket = byTile.get(key);
+    if (bucket) bucket.push(villager);
+    else byTile.set(key, [villager]);
   }
-  removeCasualties(state, casualties, "kwam om in de brand.");
+  return byTile;
+}
+
+function fireKey(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
 function destroyBuilding(state: GameState, building: Building, fire: FireState): void {
