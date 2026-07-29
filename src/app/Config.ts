@@ -21,6 +21,6 @@ export const WORLD_SIZE_OPTIONS = [
 export const WORLD_SIZES = WORLD_SIZE_OPTIONS.map((option) => option.width);
 export type WorldSize = (typeof WORLD_SIZES)[number];
 
-export type GameSpeed = 0 | 1 | 2 | 4 | 8;
+export type GameSpeed = 0 | 1 | 2 | 4 | 8 | 16 | 32;
 
-export const GAME_SPEEDS: GameSpeed[] = [1, 2, 4, 8];
+export const GAME_SPEEDS: GameSpeed[] = [1, 2, 4, 8, 16, 32];

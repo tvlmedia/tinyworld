@@ -41,7 +41,12 @@ export class Game {
     return new GameLoop({
       update: (dt) => {
         if (!this.state.time.paused && this.state.time.speed > 0) {
-          this.simulation.update(this.state, dt * this.state.time.speed);
+          const simulationDt = dt * this.state.time.speed;
+          const steps = Math.ceil(simulationDt / 0.5);
+          const stepDt = simulationDt / steps;
+          for (let step = 0; step < steps; step += 1) {
+            this.simulation.update(this.state, stepDt);
+          }
         }
         if (this.state.settings.autosave && Date.now() - this.state.lastAutosaveAt > AUTOSAVE_INTERVAL_MS) {
           this.saves.saveAutosave(this.state);

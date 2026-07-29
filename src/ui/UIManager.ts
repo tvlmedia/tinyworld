@@ -79,7 +79,7 @@ export class UIManager {
         </section>
         <section>
           <h2>Tijd</h2>
-          <div class="segmented" role="group" aria-label="Simulatiesnelheid">
+          <div class="segmented segmented--speed" role="group" aria-label="Simulatiesnelheid">
             ${GAME_SPEEDS.map((speed) => `<button type="button" data-speed="${speed}">${speed}x</button>`).join("")}
           </div>
           <button type="button" data-action="pause">Pauze</button>
