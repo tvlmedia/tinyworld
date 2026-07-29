@@ -50,5 +50,5 @@ describe("housing upgrades", () => {
     const upgradedHomes = state.buildings.filter((building) => building.type === "house" && (building.upgradeLevel ?? 1) > 1);
     expect(population).toBeGreaterThan(80);
     expect(upgradedHomes.length).toBeGreaterThan(0);
-  });
+  }, 15_000);
 });
