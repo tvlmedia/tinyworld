@@ -1,0 +1,16 @@
+import { GAME_VERSION } from "../app/Config";
+import { SaveGame } from "./Serialization";
+
+export function migrateSaveGame(save: SaveGame): SaveGame {
+  if (!save || typeof save.version !== "number") {
+    throw new Error("Savegame mist een versienummer.");
+  }
+  if (save.version > GAME_VERSION) {
+    throw new Error("Savegame komt uit een nieuwere versie.");
+  }
+  let migrated = save;
+  if (migrated.version === 0) {
+    migrated = { ...migrated, version: 1 };
+  }
+  return migrated;
+}

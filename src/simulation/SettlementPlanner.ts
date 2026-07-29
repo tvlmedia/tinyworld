@@ -1,0 +1,122 @@
+import { GameState, createBuildingAt } from "../app/GameState";
+import { BUILDING_DEFINITIONS, BuildingType } from "../entities/Building";
+import { Point, rectsOverlap } from "../utils/MathUtils";
+import { isWalkableTile } from "../world/Tile";
+import { getTile } from "../world/World";
+import { addEvent } from "./EventSystem";
+import { isStorageNearCapacity } from "./ResourceSystem";
+
+export function updateSettlementPlanner(state: GameState, dt: number): void {
+  state.plannerTimer -= dt;
+  if (state.plannerTimer > 0) return;
+  state.plannerTimer = 18;
+
+  if (state.buildings.some((building) => building.status !== "complete")) return;
+
+  const next = chooseNextBuilding(state);
+  if (!next) return;
+  const spot = findBuildingSpot(state, next);
+  if (!spot) return;
+  const building = createBuildingAt(state, next, spot.x, spot.y);
+  addEvent(state, `Er is een bouwplaats voor ${BUILDING_DEFINITIONS[next].label.toLowerCase()} gekozen.`);
+  if (next === "farm") convertFootprintToFarmland(state, building.x, building.y, building.width, building.height);
+}
+
+export function chooseNextBuilding(state: GameState): BuildingType | undefined {
+  const completed = (type: BuildingType) => state.buildings.filter((building) => building.type === type && building.status === "complete").length;
+  const planned = (type: BuildingType) => state.buildings.some((building) => building.type === type && building.status !== "complete");
+  const bedCapacity = state.buildings
+    .filter((building) => building.status === "complete" && building.type === "house")
+    .reduce((sum, building) => sum + building.capacity, 0);
+
+  if (bedCapacity < state.villagers.length && !planned("house")) return "house";
+  if (state.resources.food < Math.max(30, state.villagers.length * 7) && completed("farm") < 2 && !planned("farm")) return "farm";
+  if (state.resources.wood < 28 && completed("woodcutter") < 1 && !planned("woodcutter") && state.time.day >= 2) return "woodcutter";
+  if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < 3 && !planned("storage")) return "storage";
+  if (state.villagers.length >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
+  if (state.villagers.length >= 9 && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
+  return undefined;
+}
+
+export function findBuildingSpot(state: GameState, type: BuildingType): Point | undefined {
+  const definition = BUILDING_DEFINITIONS[type];
+  const center = state.world.spawn;
+  const maxRadius = Math.min(30, Math.floor(state.world.width / 3));
+  for (let radius = 5; radius < maxRadius; radius += 2) {
+    const candidates: Point[] = [];
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 10) {
+      const wobble = state.rng.float(-1.8, 1.8);
+      candidates.push({
+        x: Math.floor(center.x + Math.cos(angle) * (radius + wobble) - definition.width / 2),
+        y: Math.floor(center.y + Math.sin(angle) * (radius + wobble) - definition.height / 2)
+      });
+    }
+    candidates.sort((a, b) => scoreSpot(state, a, type) - scoreSpot(state, b, type));
+    for (const spot of candidates) {
+      if (isValidBuildingSpot(state, spot.x, spot.y, type)) return spot;
+    }
+  }
+  return undefined;
+}
+
+export function isValidBuildingSpot(state: GameState, x: number, y: number, type: BuildingType): boolean {
+  const definition = BUILDING_DEFINITIONS[type];
+  if (x < 2 || y < 2 || x + definition.width >= state.world.width - 2 || y + definition.height >= state.world.height - 2) return false;
+  const candidateRect = { x, y, width: definition.width, height: definition.height };
+  for (const building of state.buildings) {
+    const padded = { x: building.x - 1, y: building.y - 1, width: building.width + 2, height: building.height + 2 };
+    if (rectsOverlap(candidateRect, padded)) return false;
+  }
+  for (let yy = y; yy < y + definition.height; yy += 1) {
+    for (let xx = x; xx < x + definition.width; xx += 1) {
+      const tile = getTile(state.world, xx, yy);
+      if (!tile || !isWalkableTile(tile) || tile.type === "rock") return false;
+    }
+  }
+  return true;
+}
+
+function scoreSpot(state: GameState, spot: Point, type: BuildingType): number {
+  const centerDistance = Math.hypot(spot.x - state.world.spawn.x, spot.y - state.world.spawn.y);
+  const roadBonus = nearbyRoadCount(state, spot) * -3;
+  const farmFertility = type === "farm" ? -averageFertility(state, spot, BUILDING_DEFINITIONS[type].width, BUILDING_DEFINITIONS[type].height) * 16 : 0;
+  return centerDistance + roadBonus + farmFertility;
+}
+
+function nearbyRoadCount(state: GameState, spot: Point): number {
+  let count = 0;
+  for (let y = spot.y - 4; y <= spot.y + 4; y += 1) {
+    for (let x = spot.x - 4; x <= spot.x + 4; x += 1) {
+      if (getTile(state.world, x, y)?.type === "road") count += 1;
+    }
+  }
+  return count;
+}
+
+function averageFertility(state: GameState, spot: Point, width: number, height: number): number {
+  let sum = 0;
+  let count = 0;
+  for (let y = spot.y; y < spot.y + height; y += 1) {
+    for (let x = spot.x; x < spot.x + width; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (tile) {
+        sum += tile.fertility;
+        count += 1;
+      }
+    }
+  }
+  return count > 0 ? sum / count : 0;
+}
+
+function convertFootprintToFarmland(state: GameState, x: number, y: number, width: number, height: number): void {
+  for (let yy = y; yy < y + height; yy += 1) {
+    for (let xx = x; xx < x + width; xx += 1) {
+      const tile = getTile(state.world, xx, yy);
+      if (tile) {
+        tile.type = "farmland";
+        tile.resourceAmount = Math.max(1, tile.resourceAmount);
+      }
+    }
+  }
+  state.world.version += 1;
+}
