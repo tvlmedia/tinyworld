@@ -105,6 +105,7 @@ export class SaveManager {
       plannerTimer: 8,
       populationTimer: 0,
       natureCursor: 0,
+      burnedRecoveryCursor: 0,
       lastAutosaveAt: Date.now(),
       debug: {
         enabled: typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true",

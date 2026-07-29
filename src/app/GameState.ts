@@ -121,6 +121,7 @@ export interface GameState {
   plannerTimer: number;
   populationTimer: number;
   natureCursor: number;
+  burnedRecoveryCursor: number;
   lastAutosaveAt: number;
   debug: DebugState;
   buildingEffects: BuildingEffects;
@@ -214,6 +215,7 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     plannerTimer: 12,
     populationTimer: 0,
     natureCursor: 0,
+    burnedRecoveryCursor: 0,
     lastAutosaveAt: 0,
     debug: {
       enabled: typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true",
