@@ -124,9 +124,14 @@ function destroyBuilding(state: GameState, building: Building, fire: FireState):
   scorchFootprint(state, building);
   const costs = BUILDING_DEFINITIONS[building.type].costs;
   building.status = "planned";
-  building.health = building.maxHealth;
+  building.health = 0;
   building.progress = 0;
   building.productionTimer = 0;
+  building.damageState = "ruined";
+  building.ruined = true;
+  building.cleanupProgress = 0;
+  building.repairing = false;
+  building.requiredMaterials = undefined;
   building.materialsDelivered.wood = Math.floor((costs.wood ?? 0) * 0.3);
   building.materialsDelivered.food = Math.floor((costs.food ?? 0) * 0.3);
   building.materialsDelivered.stone = Math.floor((costs.stone ?? 0) * 0.45);
@@ -135,7 +140,7 @@ function destroyBuilding(state: GameState, building: Building, fire: FireState):
 
   const label = BUILDING_DEFINITIONS[building.type].label.toLowerCase();
   const victims = casualtyCount === 1 ? " 1 bewoner kwam om." : casualtyCount > 1 ? ` ${casualtyCount} bewoners kwamen om.` : "";
-  addEvent(state, `De ${label} brandde af.${victims} Bewoners bergen materiaal en herbouwen zodra het veilig is.`);
+  addEvent(state, `De ${label} brandde af.${victims} Er blijft puin achter dat eerst moet worden geruimd.`);
 }
 
 function removeCasualties(state: GameState, casualties: Set<string>, fallbackText: string): number {

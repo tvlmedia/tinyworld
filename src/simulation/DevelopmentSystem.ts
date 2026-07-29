@@ -35,6 +35,7 @@ export function updateDevelopment(state: GameState, dt: number): void {
 
     const capital = settlements.find((settlement) => settlement.id === civilization.capitalSettlementId);
     if (!capital) continue;
+    if (settlements.some((settlement) => settlement.recovery && settlement.recovery.state !== "normal")) continue;
     ensureCapitalCastle(state, civilization, capital, stage.id);
     updateFortifications(state, civilization, capital, stage.id);
   }

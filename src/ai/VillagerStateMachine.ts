@@ -1,6 +1,7 @@
 import { Villager, VillagerState } from "../entities/Villager";
 
 export function setVillagerState(villager: Villager, state: VillagerState): void {
+  if (villager.state !== state) villager.stateElapsed = 0;
   villager.state = state;
   villager.actionTimer = 0;
 }

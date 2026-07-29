@@ -32,6 +32,7 @@ export function updateExpansion(state: GameState, dt: number): void {
 
 function updateMacroPopulation(state: GameState): void {
   for (const settlement of state.settlements) {
+    if (settlement.recovery && settlement.recovery.state !== "normal") continue;
     const freeHousing = Math.max(0, settlement.housingCapacity - settlement.population);
     if (settlement.foodSecurity > 62 && settlement.happiness > 54 && freeHousing > 0) {
       const growthRate =
@@ -98,6 +99,16 @@ export function scoreExpansionLocation(state: GameState, civilization: Civilizat
 function maybePlanColonization(state: GameState): void {
   let plannedThisTick = 0;
   for (const civilization of state.civilizations) {
+    if (
+      state.settlements.some(
+        (settlement) =>
+          settlement.civilizationId === civilization.id &&
+          settlement.recovery &&
+          settlement.recovery.state !== "normal"
+      )
+    ) {
+      continue;
+    }
     if (civilization.population < COLONIZATION.minCapitalPopulation) continue;
     const activeGroups = state.colonistGroups.filter(
       (group) => group.civilizationId === civilization.id && (group.state === "traveling" || group.state === "preparing")

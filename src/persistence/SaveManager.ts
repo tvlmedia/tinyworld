@@ -13,6 +13,7 @@ import { SeededRandom } from "../world/SeededRandom";
 import { deserializeWorld, SaveGame, serializeGame } from "./Serialization";
 import { migrateSaveGame } from "./SaveMigrations";
 import { refreshBuildingEffects } from "../app/GameState";
+import { createSettlementRecovery } from "../entities/Civilization";
 
 const SAVE_PREFIX = "tinyworld:slot:";
 const AUTOSAVE_KEY = "tinyworld:autosave";
@@ -136,6 +137,18 @@ export class SaveManager {
       territory,
       civilizationTimers: { ...defaultCivilizationTimers(), ...(migrated.civilizationTimers ?? {}) }
     };
+    for (const settlement of state.settlements) settlement.recovery ??= createSettlementRecovery();
+    for (const villager of state.villagers) {
+      villager.stateElapsed ??= 0;
+      villager.stuckElapsed ??= 0;
+      villager.stuckResets ??= 0;
+      villager.lastProgressX ??= villager.x;
+      villager.lastProgressY ??= villager.y;
+    }
+    for (const building of state.buildings) {
+      building.damageState ??= building.ruined ? "ruined" : building.health < building.maxHealth ? "damaged" : "operational";
+      building.cleanupProgress ??= 0;
+    }
     bootstrapCivilizationState(state);
     refreshBuildingEffects(state);
     return state;

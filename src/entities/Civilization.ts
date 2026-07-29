@@ -35,6 +35,45 @@ export type SettlementPriority =
   | "science"
   | "infrastructure";
 
+export type RecoveryState = "normal" | "stressed" | "emergency" | "recovering" | "collapseRisk";
+
+export type RecoveryTaskType =
+  | "extinguishFire"
+  | "gatherFood"
+  | "gatherWood"
+  | "gatherStone"
+  | "repairBuilding"
+  | "clearRubble"
+  | "rebuildBuilding"
+  | "buildEmergency";
+
+export type RecoveryTaskStatus = "queued" | "assigned" | "active" | "blocked" | "completed" | "cancelled";
+
+export interface RecoveryTask {
+  id: string;
+  type: RecoveryTaskType;
+  status: RecoveryTaskStatus;
+  priority: number;
+  createdDay: number;
+  buildingId?: string;
+  buildingType?: string;
+  attempts: number;
+  blockedReason?: string;
+  retryAfterDay?: number;
+}
+
+export interface SettlementRecovery {
+  state: RecoveryState;
+  priorities: string[];
+  tasks: RecoveryTask[];
+  recentCrisisTimer: number;
+  stableEvaluations: number;
+  damagedBuildings: number;
+  ruinedBuildings: number;
+  stuckResidents: number;
+  blockedReason?: string;
+}
+
 export type MapMode = "normal" | "political" | "diplomacy" | "resources" | "population" | "technology" | "war" | "trade";
 
 export type StrategicResource = "food" | "wood" | "stone" | "metal" | "tools" | "wealth" | "research";
@@ -134,6 +173,20 @@ export interface Settlement {
   localPriorities: SettlementPriority[];
   stockpile: SettlementStockpile;
   nextProject?: string;
+  recovery?: SettlementRecovery;
+}
+
+export function createSettlementRecovery(): SettlementRecovery {
+  return {
+    state: "normal",
+    priorities: [],
+    tasks: [],
+    recentCrisisTimer: 0,
+    stableEvaluations: 0,
+    damagedBuildings: 0,
+    ruinedBuildings: 0,
+    stuckResidents: 0
+  };
 }
 
 export interface DiplomaticModifier {
@@ -258,4 +311,5 @@ export interface CivilizationTimers {
   trade: number;
   history: number;
   development: number;
+  recovery: number;
 }

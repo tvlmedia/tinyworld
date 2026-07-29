@@ -11,10 +11,15 @@ import { addEvent } from "../simulation/EventSystem";
 import { addHistoricalEvent } from "../simulation/HistorySystem";
 import { assignHomes, hasValidHome } from "../simulation/HousingSystem";
 import { beginEmergencyAction, completeEmergencyAction } from "../simulation/EmergencyResponseSystem";
+import { RECOVERY } from "../config/recoveryConfig";
 
 const RESOURCE_TYPES: ResourceType[] = ["wood", "food", "stone"];
 
 export function updateVillager(villager: Villager, state: GameState, dt: number): void {
+  villager.stateElapsed = (villager.stateElapsed ?? 0) + dt;
+  updateStuckTimer(villager, dt);
+  villager.stuckResets ??= 0;
+  if (validateVillagerAssignment(villager, state)) return;
   villager.age += dt / 240;
   villager.hunger = Math.min(100, villager.hunger + dt * 0.18);
   villager.energy = Math.max(0, villager.energy - dt * (state.time.isNight ? 0.18 : 0.08));
@@ -147,7 +152,7 @@ function decideNextAction(villager: Villager, state: GameState): void {
     return;
   }
 
-  const buildSite = findUsefulBuildSite(state);
+  const buildSite = findUsefulBuildSite(state, villager);
   if (buildSite) {
     const missingResource = missingStoredResourceForBuildSite(state, buildSite);
     if (missingResource) {
@@ -306,6 +311,13 @@ function findStone(villager: Villager, state: GameState): void {
 function walkToStorage(villager: Villager, state: GameState, nextState: "deliverWood" | "deliverFood" | "deliverStone" | "eat"): void {
   const storage = nearestCompletedBuilding(state, villager, "storage") ?? nearestCompletedBuilding(state, villager, "campfire");
   if (!storage) {
+    if (villager.carrying && nextState !== "eat") {
+      state.resources[villager.carrying.type] += villager.carrying.amount;
+      villager.carrying = undefined;
+    } else if (nextState === "eat" && state.resources.food > 0) {
+      state.resources.food -= 1;
+      villager.hunger = Math.max(0, villager.hunger - 48);
+    }
     setVillagerState(villager, "idle");
     return;
   }
@@ -346,9 +358,7 @@ function fetchMaterial(villager: Villager, state: GameState, building: Building)
 function gatherResource(villager: Villager, state: GameState, resource: ResourceType): void {
   if (resource === "wood") findTree(villager, state);
   else if (resource === "food") findFood(villager, state);
-  else if (state.buildingEffects.mineBonus) findStone(villager, state);
-  else if (state.resources.wood < 12) findTree(villager, state);
-  else wander(villager, state);
+  else findStone(villager, state);
 }
 
 function missingStoredResourceForBuildSite(state: GameState, building: Building): ResourceType | undefined {
@@ -472,10 +482,13 @@ function findNearestTile(
   return best;
 }
 
-function findUsefulBuildSite(state: GameState): Building | undefined {
+function findUsefulBuildSite(state: GameState, villager: Villager): Building | undefined {
   return state.buildings.find(
     (building) =>
       building.status !== "complete" &&
+      !building.ruined &&
+      !building.pausedForRecovery &&
+      (!villager.settlementId || building.settlementId === villager.settlementId) &&
       !state.fires.some(
         (fire) =>
           fire.x >= building.x - 3 &&
@@ -532,6 +545,15 @@ function completeBuilding(building: Building, state: GameState, builderName: str
   const completedUpgrade = building.upgradeTargetLevel;
   building.status = "complete";
   building.progress = building.workRequired;
+  if (building.repairing) {
+    building.repairing = false;
+    building.damageState = "operational";
+    building.health = building.maxHealth;
+    building.workRequired = building.originalWorkRequired ?? BUILDING_DEFINITIONS[building.type].buildWorkRequired;
+    building.originalWorkRequired = undefined;
+    building.requiredMaterials = undefined;
+    building.recoveryTaskId = undefined;
+  }
   if (completedUpgrade) {
     building.upgradeLevel = completedUpgrade;
     building.upgradeTargetLevel = undefined;
@@ -565,7 +587,65 @@ function completeBuilding(building: Building, state: GameState, builderName: str
     establishManagedForest(state, building);
   }
   if (building.type !== "wall" && building.type !== "gate") createRoadToCenter(state, building);
+  building.requiredMaterials = undefined;
+  building.damageState = "operational";
   addEvent(state, `${builderName} voltooide ${buildingLabel(building.type)}.`);
+}
+
+export function resetInvalidVillagerAssignment(villager: Villager): void {
+  villager.path = [];
+  villager.targetTile = undefined;
+  villager.targetBuildingId = undefined;
+  villager.workplaceId = undefined;
+  villager.emergencyFire = undefined;
+  villager.emergencyWater = undefined;
+  villager.carryingWater = undefined;
+  villager.targetX = villager.x;
+  villager.targetY = villager.y;
+  villager.actionTimer = 0;
+  villager.stateElapsed = 0;
+  villager.stuckElapsed = 0;
+  villager.lastProgressX = villager.x;
+  villager.lastProgressY = villager.y;
+  villager.stuckResets = (villager.stuckResets ?? 0) + 1;
+  setVillagerState(villager, "idle");
+}
+
+function validateVillagerAssignment(villager: Villager, state: GameState): boolean {
+  if (villager.homeId && !state.buildings.some((building) => building.id === villager.homeId && building.status === "complete")) {
+    villager.homeId = undefined;
+  }
+  if (villager.workplaceId && !state.buildings.some((building) => building.id === villager.workplaceId && building.status === "complete")) {
+    villager.workplaceId = undefined;
+  }
+  if (villager.targetBuildingId) {
+    const target = state.buildings.find((building) => building.id === villager.targetBuildingId);
+    const allowsCompleteTarget = ["deliverWood", "deliverFood", "deliverStone", "eat", "sleep"].includes(villager.state);
+    if (!target || target.ruined || (target.status === "complete" && !allowsCompleteTarget)) {
+      resetInvalidVillagerAssignment(villager);
+      return true;
+    }
+  }
+  if (villager.emergencyFire && !state.fires.some((fire) => fire.x === villager.emergencyFire!.x && fire.y === villager.emergencyFire!.y)) {
+    resetInvalidVillagerAssignment(villager);
+    return true;
+  }
+  if (villager.stuckElapsed > RECOVERY.stuckResidentTimeout && villager.state !== "idle") {
+    resetInvalidVillagerAssignment(villager);
+    return true;
+  }
+  return false;
+}
+
+function updateStuckTimer(villager: Villager, dt: number): void {
+  villager.lastProgressX ??= villager.x;
+  villager.lastProgressY ??= villager.y;
+  villager.stuckElapsed ??= 0;
+  const moved = Math.hypot(villager.x - villager.lastProgressX, villager.y - villager.lastProgressY);
+  if (villager.state === "idle" || villager.actionTimer > 0 || moved > 0.04) villager.stuckElapsed = 0;
+  else villager.stuckElapsed += dt;
+  villager.lastProgressX = villager.x;
+  villager.lastProgressY = villager.y;
 }
 
 function establishManagedForest(state: GameState, building: Building): void {

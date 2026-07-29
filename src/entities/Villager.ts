@@ -59,6 +59,11 @@ export interface Villager {
   armyId?: string;
   path: Point[];
   actionTimer: number;
+  stateElapsed: number;
+  stuckElapsed: number;
+  stuckResets: number;
+  lastProgressX: number;
+  lastProgressY: number;
   targetTile?: Point;
   targetBuildingId?: string;
   emergencyFire?: Point;
@@ -115,6 +120,11 @@ export function createVillager(
     state: "idle",
     path: [],
     actionTimer: 0,
+    stateElapsed: 0,
+    stuckElapsed: 0,
+    stuckResets: 0,
+    lastProgressX: x,
+    lastProgressY: y,
     speechTimer: 0
   };
 }

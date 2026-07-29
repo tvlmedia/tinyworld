@@ -55,6 +55,18 @@ export interface Building {
   productionTimer: number;
   upgradeLevel?: number;
   upgradeTargetLevel?: number;
+  requiredMaterials?: ResourceStore;
+  damageState?: "operational" | "damaged" | "ruined";
+  ruined?: boolean;
+  cleanupProgress?: number;
+  repairing?: boolean;
+  originalWorkRequired?: number;
+  emergencyBuilt?: boolean;
+  pausedForRecovery?: boolean;
+  recoveryTaskId?: string;
+  lastRecoveryProgress?: number;
+  stalledEvaluations?: number;
+  recoveryAttempts?: number;
   civilizationId?: string;
   settlementId?: string;
   visualEra?: string;
@@ -265,7 +277,7 @@ export function buildingContains(building: Building, x: number, y: number): bool
 }
 
 export function materialMissing(building: Building, resource: ResourceType): number {
-  const cost = BUILDING_DEFINITIONS[building.type].costs[resource] ?? 0;
+  const cost = building.requiredMaterials?.[resource] ?? BUILDING_DEFINITIONS[building.type].costs[resource] ?? 0;
   return Math.max(0, cost - building.materialsDelivered[resource]);
 }
 

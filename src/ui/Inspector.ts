@@ -58,6 +58,17 @@ export function inspectorHtml(state: GameState): string {
     const capital = civilization ? state.settlements.find((item) => item.id === civilization.capitalSettlementId) : undefined;
     const distanceToCapital =
       capital && capital.id !== settlement.id ? `${Math.round(Math.hypot(settlement.centerX - capital.centerX, settlement.centerY - capital.centerY))} tiles` : "hoofdstad";
+    const recovery = settlement.recovery;
+    const recoveryStatus = recoveryStatusLabel(recovery?.state ?? "normal");
+    const openTasks = recovery?.tasks.filter((task) => task.status !== "completed" && task.status !== "cancelled") ?? [];
+    const residents = state.villagers.filter((villager) => villager.settlementId === settlement.id);
+    const debugRecovery = state.debug.enabled
+      ? `
+        <dt>Debug idle/stuck</dt><dd>${residents.filter((villager) => villager.state === "idle").length} / ${recovery?.stuckResidents ?? 0}</dd>
+        <dt>Debug taken</dt><dd>${openTasks.filter((task) => task.status !== "blocked").length} actief, ${openTasks.filter((task) => task.status === "blocked").length} geblokkeerd</dd>
+        <dt>Debug bronnen</dt><dd>voedsel ${Math.floor(state.resources.food)}, hout ${Math.floor(state.resources.wood)}, steen ${Math.floor(state.resources.stone)}</dd>
+      `
+      : "";
     return `
       <h2>${settlement.name}</h2>
       <dl>
@@ -68,6 +79,12 @@ export function inspectorHtml(state: GameState): string {
         <dt>Voedselzekerheid</dt><dd>${Math.round(settlement.foodSecurity)}</dd>
         <dt>Verdediging</dt><dd>${Math.round(settlement.defense)}</dd>
         <dt>Stabiliteit</dt><dd>${Math.round(settlement.stability)}</dd>
+        <dt>Herstelstatus</dt><dd>${recoveryStatus}</dd>
+        <dt>Prioriteiten</dt><dd>${recovery?.priorities.join(", ") || "-"}</dd>
+        <dt>Hersteltaken</dt><dd>${openTasks.length}</dd>
+        <dt>Schade</dt><dd>${recovery ? `${recovery.damagedBuildings} beschadigd, ${recovery.ruinedBuildings} puin` : "-"}</dd>
+        <dt>Geblokkeerd</dt><dd>${recovery?.blockedReason ?? openTasks.find((task) => task.blockedReason)?.blockedReason ?? "-"}</dd>
+        ${debugRecovery}
         <dt>Afstand tot hoofdstad</dt><dd>${distanceToCapital}</dd>
         <dt>Centrum</dt><dd>${Math.round(settlement.centerX)}, ${Math.round(settlement.centerY)}</dd>
       </dl>
@@ -94,6 +111,21 @@ export function inspectorHtml(state: GameState): string {
   }
 
   return emptyInspector();
+}
+
+function recoveryStatusLabel(state: NonNullable<NonNullable<GameState["settlements"][number]["recovery"]>["state"]>): string {
+  switch (state) {
+    case "normal":
+      return "Normaal";
+    case "stressed":
+      return "Onder druk";
+    case "emergency":
+      return "Noodtoestand";
+    case "recovering":
+      return "Herstellen";
+    case "collapseRisk":
+      return "Instortingsgevaar";
+  }
 }
 
 function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): string {

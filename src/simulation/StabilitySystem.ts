@@ -1,7 +1,8 @@
 import { GameState, worldYear } from "../app/GameState";
 import { CIVILIZATION_PREFIXES, CIVILIZATION_SUFFIXES } from "../config/civilizationConfig";
 import { STABILITY } from "../config/stabilityConfig";
-import { Civilization, DiplomaticRelation, Settlement, War } from "../entities/Civilization";
+import { RECOVERY } from "../config/recoveryConfig";
+import { Civilization, DiplomaticRelation, Settlement, War, createSettlementRecovery } from "../entities/Civilization";
 import { clamp } from "../utils/MathUtils";
 import { forceTerritoryRefresh } from "./CivilizationSystem";
 import { addEvent } from "./EventSystem";
@@ -38,7 +39,10 @@ export function applyStabilityPressure(state: GameState, civilization: Civilizat
   for (const settlement of settlements) {
     const unrest = calculateUnrest(state, civilization, settlement);
     totalUnrest += unrest;
-    if (unrest < STABILITY.unrestWarning) continue;
+    if (unrest < STABILITY.unrestWarning) {
+      recoverStability(state, civilization, settlement);
+      continue;
+    }
     settlement.stability = clamp(settlement.stability - STABILITY.unrestDamage * (unrest / 100), 0, 100);
     for (const villager of state.villagers.filter((item) => item.settlementId === settlement.id)) {
       villager.happiness = clamp(villager.happiness - unrest * 0.025, 0, 100);
@@ -143,7 +147,7 @@ export function collapseCivilization(state: GameState, civilization: Civilizatio
   addEvent(state, `${civilization.name} zijn ingestort.`);
 }
 
-function triggerRiot(state: GameState, settlement: Settlement, unrest: number): void {
+export function triggerRiot(state: GameState, settlement: Settlement, unrest: number): void {
   const casualties = unrest > 100 ? Math.max(1, Math.round(settlement.population * 0.04)) : 0;
   if (casualties > 0) removeSettlementPopulation(state, settlement, casualties);
   const vulnerableBuilding = state.buildings.find(
@@ -153,12 +157,45 @@ function triggerRiot(state: GameState, settlement: Settlement, unrest: number): 
     vulnerableBuilding.health = Math.max(8, vulnerableBuilding.health - unrest * 0.35);
     if (unrest > 92) igniteTile(state, vulnerableBuilding.x, vulnerableBuilding.y, 0.65);
   }
-  addHistoricalEvent(state, "rebellion", `${settlement.name} kende rellen door voedseltekort en onvrede.`, {
-    civilizationId: settlement.civilizationId,
-    settlementId: settlement.id,
-    x: settlement.centerX,
-    y: settlement.centerY
-  });
+  const recovery = settlement.recovery ?? (settlement.recovery = createSettlementRecovery());
+  recovery.recentCrisisTimer = Math.max(recovery.recentCrisisTimer, RECOVERY.recentCrisisDuration);
+  recovery.state = "emergency";
+  const recentRiot = state.historicEvents.some(
+    (event) =>
+      event.type === "rebellion" &&
+      event.settlementId === settlement.id &&
+      event.year >= worldYear(state) - 2
+  );
+  if (!recentRiot) {
+    addHistoricalEvent(state, "rebellion", `${settlement.name} kende rellen door voedseltekort en onvrede.`, {
+      civilizationId: settlement.civilizationId,
+      settlementId: settlement.id,
+      x: settlement.centerX,
+      y: settlement.centerY
+    });
+  }
+}
+
+function recoverStability(state: GameState, civilization: Civilization, settlement: Settlement): void {
+  const recovery = settlement.recovery;
+  const activeFire = state.fires.some(
+    (fire) => Math.hypot(fire.x - settlement.centerX, fire.y - settlement.centerY) < 24
+  );
+  const activeWar = activeWarsFor(state, civilization.id).length > 0;
+  const healthy =
+    settlement.foodSecurity >= 58 &&
+    settlement.housingCapacity >= settlement.population &&
+    settlement.foodProduction > 0 &&
+    !activeFire &&
+    !activeWar;
+  if (!healthy) return;
+  const crisisPenalty = recovery && recovery.recentCrisisTimer > 0 ? 0.35 : 1;
+  const recoveryBonus = recovery?.state === "recovering" ? 1.25 : 1;
+  settlement.stability = clamp(
+    settlement.stability + RECOVERY.recoveryStabilityGain * crisisPenalty * recoveryBonus,
+    0,
+    100
+  );
 }
 
 function createIndependenceWar(state: GameState, rebel: Civilization, former: Civilization, settlement: Settlement): War {

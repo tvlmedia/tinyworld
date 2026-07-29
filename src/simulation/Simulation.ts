@@ -10,6 +10,7 @@ import { updateHousing } from "./HousingSystem";
 import { updateHousingUpgrades } from "./HousingUpgradeSystem";
 import { updateNature } from "./NatureSystem";
 import { updatePopulation } from "./PopulationSystem";
+import { updateRecovery } from "./RecoverySystem";
 import { updateSettlementPlanner } from "./SettlementPlanner";
 import { updateStability } from "./StabilitySystem";
 import { updateTechnology } from "./TechnologySystem";
@@ -34,6 +35,7 @@ export class Simulation {
     updateProduction(state, dt);
     updatePopulation(state, dt);
     updateCivilization(state, dt);
+    updateRecovery(state, dt);
     updateExpansion(state, dt);
     updateTechnology(state, dt);
     updateDevelopment(state, dt);

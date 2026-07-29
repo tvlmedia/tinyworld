@@ -34,6 +34,7 @@ export function updateHousingUpgrades(state: GameState, dt: number): void {
   house.maxHealth += upgrade.level >= 3 ? 12 : 5;
   house.health = house.maxHealth;
   house.productionTimer = 0;
+  house.emergencyBuilt = false;
   const settlement = state.settlements.find((item) => item.id === house.settlementId);
   addEvent(
     state,

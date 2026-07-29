@@ -15,7 +15,8 @@ import {
   Settlement,
   TerritoryState,
   TradeRoute,
-  War
+  War,
+  createSettlementRecovery
 } from "../entities/Civilization";
 import { createBuilding, Building, BuildingType } from "../entities/Building";
 import { ResourceStore } from "../entities/Resources";
@@ -269,7 +270,8 @@ export function defaultCivilizationTimers(): CivilizationTimers {
     war: CIVILIZATION_UPDATE_INTERVALS.war,
     trade: CIVILIZATION_UPDATE_INTERVALS.trade,
     history: CIVILIZATION_UPDATE_INTERVALS.history,
-    development: CIVILIZATION_UPDATE_INTERVALS.development
+    development: CIVILIZATION_UPDATE_INTERVALS.development,
+    recovery: 4
   };
 }
 
@@ -332,7 +334,8 @@ export function bootstrapCivilizationState(state: GameState): void {
     connectedSettlementIds: [],
     localPriorities: ["housing", "food", "wood"],
     stockpile: { ...state.resources, metal: 0, tools: 0, wealth: 0, research: 0 },
-    nextProject: "bouw het eerste huis"
+    nextProject: "bouw het eerste huis",
+    recovery: createSettlementRecovery()
   };
 
   const civilization: Civilization = {

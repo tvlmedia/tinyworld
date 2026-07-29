@@ -41,6 +41,9 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
     .filter((building) => building.status === "complete" && building.type === "house" && (!settlement || building.settlementId === settlement.id))
     .reduce((sum, building) => sum + building.capacity, 0);
   const population = settlement?.population ?? state.villagers.length;
+  const temporaryHomes = scopedBuildings.filter(
+    (building) => building.type === "house" && building.status === "complete" && building.emergencyBuilt
+  ).length;
   const desiredFarms = Math.min(8, Math.max(1, Math.ceil(population / 10)));
   const unlocked = (type: BuildingType) => isBuildingUnlocked(state, settlement?.civilizationId, type);
   const civilization = state.civilizations.find((item) => item.id === settlement?.civilizationId);
@@ -55,7 +58,7 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   if (population >= 10 && completed("market") >= 1 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
   if (
     bedCapacity < population + 2 &&
-    (bedCapacity < population || completed("house") < 3) &&
+    (bedCapacity < population || completed("house") < 3 || temporaryHomes > 0) &&
     !planned("house")
   ) {
     return "house";
@@ -123,6 +126,7 @@ export function findBuildingSpot(state: GameState, type: BuildingType, center = 
 function chooseSettlementForProject(state: GameState): Settlement | undefined {
   if (state.settlements.length === 0) return undefined;
   return state.settlements
+    .filter((settlement) => settlement.recovery?.state === undefined || settlement.recovery.state === "normal")
     .filter((settlement) => {
       const projects = state.buildings.filter(
         (building) => building.settlementId === settlement.id && building.status !== "complete"
