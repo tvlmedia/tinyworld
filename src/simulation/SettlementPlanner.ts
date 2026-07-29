@@ -1,4 +1,5 @@
 import { GameState, createBuildingAt } from "../app/GameState";
+import { SETTLEMENT_GROWTH } from "../config/balanceConfig";
 import { developmentStageFor, developmentStageRank } from "../config/developmentConfig";
 import { BUILDING_DEFINITIONS, BuildingType } from "../entities/Building";
 import { Settlement } from "../entities/Civilization";
@@ -15,20 +16,23 @@ export function updateSettlementPlanner(state: GameState, dt: number): void {
   if (state.plannerTimer > 0) return;
   state.plannerTimer = 9;
 
-  const settlement = chooseSettlementForProject(state);
-  if (!settlement && state.buildings.some((building) => building.status !== "complete")) return;
-  const next = chooseNextBuilding(state, settlement);
-  if (!next) return;
-  const spot = findBuildingSpot(state, next, settlement ? { x: settlement.centerX, y: settlement.centerY } : undefined);
-  if (!spot) return;
-  const building = createBuildingAt(state, next, spot.x, spot.y);
-  if (settlement) {
-    building.settlementId = settlement.id;
-    building.civilizationId = settlement.civilizationId;
-    settlement.buildingIds.push(building.id);
+  if (state.settlements.length === 0) {
+    if (state.buildings.some((building) => building.status !== "complete")) return;
+    planBuilding(state, undefined);
+    return;
   }
-  addEvent(state, `Er is bij ${settlement?.name ?? state.world.name} een bouwplaats voor ${BUILDING_DEFINITIONS[next].label.toLowerCase()} gekozen.`);
-  if (next === "farm") convertFootprintToFarmland(state, building.x, building.y, building.width, building.height);
+
+  const projectBudget = Math.min(
+    SETTLEMENT_GROWTH.maxPlannerProjectsPerCycle,
+    Math.max(1, Math.ceil(state.settlements.length / SETTLEMENT_GROWTH.settlementsPerPlannerProject))
+  );
+  const considered = new Set<string>();
+  for (let index = 0; index < projectBudget; index += 1) {
+    const settlement = chooseSettlementForProject(state, considered);
+    if (!settlement) break;
+    considered.add(settlement.id);
+    planBuilding(state, settlement);
+  }
 }
 
 export function chooseNextBuilding(state: GameState, settlement = state.settlements[0]): BuildingType | undefined {
@@ -44,7 +48,11 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   const temporaryHomes = scopedBuildings.filter(
     (building) => building.type === "house" && building.status === "complete" && building.emergencyBuilt
   ).length;
-  const desiredFarms = Math.min(8, Math.max(1, Math.ceil(population / 10)));
+  const desiredFarms = Math.min(
+    SETTLEMENT_GROWTH.maxFarmsPerSettlement,
+    Math.max(1, Math.ceil(population / SETTLEMENT_GROWTH.populationPerFarm))
+  );
+  const desiredHousing = desiredHousingCapacity(population);
   const unlocked = (type: BuildingType) => isBuildingUnlocked(state, settlement?.civilizationId, type);
   const civilization = state.civilizations.find((item) => item.id === settlement?.civilizationId);
   const stage = civilization
@@ -55,19 +63,26 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
     : "camp";
 
   if (completed("mine") < 1 && !planned("mine")) return "mine";
+  if (completed("house") < 1 && !planned("house")) return "house";
+  if (completed("farm") < 1 && !planned("farm")) return "farm";
+  if (completed("woodcutter") < 1 && !planned("woodcutter")) return "woodcutter";
+  if (population >= 6 && completed("well") < 1 && !planned("well")) return "well";
+  if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
+  if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
   if (population >= 10 && completed("market") >= 1 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
   if (
-    bedCapacity < population + 2 &&
-    (bedCapacity < population || completed("house") < 3 || temporaryHomes > 0) &&
+    (bedCapacity < desiredHousing || temporaryHomes > 0) &&
     !planned("house")
   ) {
     return "house";
   }
   if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
-  if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
-  if (population >= 6 && completed("well") < 1 && !planned("well")) return "well";
-  if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < 3 && !planned("storage")) return "storage";
-  if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
+  const desiredWells = Math.min(4, Math.max(1, Math.ceil(population / 80)));
+  if (population >= 6 && completed("well") < desiredWells && !planned("well")) return "well";
+  const desiredStorage = Math.min(10, Math.max(3, Math.ceil(population / SETTLEMENT_GROWTH.populationPerStorage) + 1));
+  if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < desiredStorage && !planned("storage")) return "storage";
+  const desiredWorkshops = Math.min(4, Math.max(1, Math.ceil(population / 100)));
+  if (population >= 7 && completed("workshop") < desiredWorkshops && !planned("workshop")) return "workshop";
   if (
     population >= 18 &&
     completed("school") >= 1 &&
@@ -75,7 +90,6 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   ) {
     if (unlocked("harbor") && completed("harbor") < 1 && !planned("harbor")) return "harbor";
   }
-  if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
   if (population >= 24 && unlocked("reservoir") && completed("reservoir") < 1 && !planned("reservoir")) return "reservoir";
   if (population >= 35 && unlocked("firestation") && completed("firestation") < Math.max(1, Math.floor(population / 55)) && !planned("firestation")) {
     return "firestation";
@@ -89,23 +103,30 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   ) {
     return "barracks";
   }
-  const desiredForestry = population >= 42 ? 2 : 1;
+  const desiredForestry = Math.min(
+    SETTLEMENT_GROWTH.maxForestryPerSettlement,
+    Math.max(1, Math.ceil(population / SETTLEMENT_GROWTH.populationPerForestry))
+  );
   const needsScaledWood =
     population >= 20 &&
     completed("house") >= 3 &&
-    completed("school") >= 1 &&
-    (state.resources.wood < population * 5 || bedCapacity < population + 5);
+    (completed("school") >= 1 || developmentStageRank(stage) >= developmentStageRank("village")) &&
+    (state.resources.wood < population * 5 || bedCapacity < desiredHousing);
   if (needsScaledWood && unlocked("forestry") && completed("forestry") < desiredForestry && !planned("forestry")) return "forestry";
   if (population >= 11 && unlocked("watchtower") && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
   if (state.civilization.level >= 3 && unlocked("monument") && completed("monument") < 1 && !planned("monument")) return "monument";
   if (population >= 12 && completed("farm") < 5 && !planned("farm")) return "farm";
-  if (population >= 14 && completed("storage") < 4 && !planned("storage")) return "storage";
+  if (population >= 14 && completed("storage") < desiredStorage && !planned("storage")) return "storage";
   return undefined;
 }
 
 export function findBuildingSpot(state: GameState, type: BuildingType, center = state.world.spawn): Point | undefined {
   const definition = BUILDING_DEFINITIONS[type];
-  const maxRadius = Math.min(30, Math.floor(state.world.width / 3));
+  const nearbyBuildings = state.buildings.filter(
+    (building) => Math.hypot(building.x - center.x, building.y - center.y) <= SETTLEMENT_GROWTH.maxBuildingRadius
+  ).length;
+  const expandingRadius = 30 + Math.floor(nearbyBuildings / 12) * 4;
+  const maxRadius = Math.min(SETTLEMENT_GROWTH.maxBuildingRadius, expandingRadius, Math.floor(state.world.width / 3));
   for (let radius = 5; radius < maxRadius; radius += 2) {
     const candidates: Point[] = [];
     for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 10) {
@@ -123,16 +144,17 @@ export function findBuildingSpot(state: GameState, type: BuildingType, center = 
   return undefined;
 }
 
-function chooseSettlementForProject(state: GameState): Settlement | undefined {
+function chooseSettlementForProject(state: GameState, excluded = new Set<string>()): Settlement | undefined {
   if (state.settlements.length === 0) return undefined;
   return state.settlements
+    .filter((settlement) => !excluded.has(settlement.id))
     .filter((settlement) => settlement.recovery?.state === undefined || settlement.recovery.state === "normal")
     .filter((settlement) => {
       const projects = state.buildings.filter(
         (building) => building.settlementId === settlement.id && building.status !== "complete"
       );
       const urgentHousing =
-        settlement.housingCapacity < settlement.population + 2 &&
+        settlement.housingCapacity < desiredHousingCapacity(settlement.population) &&
         !projects.some((building) => building.type === "house");
       return projects.length === 0 || urgentHousing;
     })
@@ -140,7 +162,9 @@ function chooseSettlementForProject(state: GameState): Settlement | undefined {
     .sort((a, b) => {
       const priorityDelta = projectWeight(state, b) - projectWeight(state, a);
       if (priorityDelta !== 0) return priorityDelta;
-      return b.population - a.population;
+      const populationDelta = a.population - b.population;
+      if (populationDelta !== 0) return populationDelta;
+      return a.id.localeCompare(b.id);
     })[0];
 }
 
@@ -148,6 +172,9 @@ function projectWeight(state: GameState, settlement: Settlement): number {
   const next = chooseNextBuilding(state, settlement);
   let weight = priorityWeight(settlement);
   if (state.civilizations.some((civilization) => civilization.capitalSettlementId === settlement.id)) weight += 1.5;
+  if (next === "house") {
+    weight += Math.min(8, Math.max(0, desiredHousingCapacity(settlement.population) - settlement.housingCapacity) * 0.5);
+  }
   if (next === "mine" || next === "workshop" || next === "forestry" || next === "market" || next === "school") weight += 3;
   if (next === "watchtower") weight += 2;
   if (settlement.tier === "camp" && (next === "house" || next === "farm")) weight += 1;
@@ -160,6 +187,29 @@ function priorityWeight(settlement: Settlement): number {
   if (first === "wood" || first === "stone") return 3;
   if (first === "defense" || first === "science") return 2;
   return 1;
+}
+
+export function desiredHousingCapacity(population: number): number {
+  return population + Math.max(
+    SETTLEMENT_GROWTH.baseHousingReserve,
+    Math.ceil(population * SETTLEMENT_GROWTH.housingReserveRatio)
+  );
+}
+
+function planBuilding(state: GameState, settlement: Settlement | undefined): boolean {
+  const next = chooseNextBuilding(state, settlement);
+  if (!next) return false;
+  const spot = findBuildingSpot(state, next, settlement ? { x: settlement.centerX, y: settlement.centerY } : undefined);
+  if (!spot) return false;
+  const building = createBuildingAt(state, next, spot.x, spot.y);
+  if (settlement) {
+    building.settlementId = settlement.id;
+    building.civilizationId = settlement.civilizationId;
+    settlement.buildingIds.push(building.id);
+  }
+  addEvent(state, `Er is bij ${settlement?.name ?? state.world.name} een bouwplaats voor ${BUILDING_DEFINITIONS[next].label.toLowerCase()} gekozen.`);
+  if (next === "farm") convertFootprintToFarmland(state, building.x, building.y, building.width, building.height);
+  return true;
 }
 
 export function isValidBuildingSpot(state: GameState, x: number, y: number, type: BuildingType): boolean {

@@ -35,6 +35,21 @@ export const COLONIZATION = {
 
 export const MIN_SETTLEMENT_DISTANCE_TILES = COLONIZATION.minSettlementDistanceTiles;
 
+export const SETTLEMENT_GROWTH = {
+  baseHousingReserve: 6,
+  housingReserveRatio: 0.2,
+  settlementsPerPlannerProject: 3,
+  maxPlannerProjectsPerCycle: 8,
+  settlementsPerUpgrade: 4,
+  maxHousingUpgradesPerCycle: 6,
+  populationPerFarm: 12,
+  maxFarmsPerSettlement: 24,
+  populationPerForestry: 60,
+  maxForestryPerSettlement: 6,
+  populationPerStorage: 45,
+  maxBuildingRadius: 58
+} as const;
+
 export const ROAD_NETWORK = {
   maxLinksPerStrategyTick: 4,
   maxPathNodes: 24_000,

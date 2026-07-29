@@ -14,7 +14,7 @@ describe("managed forestry", () => {
     settlement.population = 20;
     state.resources.wood = 0;
 
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 7; index += 1) {
       const house = createBuildingAt(state, "house", state.world.spawn.x - 20 + index * 4, state.world.spawn.y + 16, true);
       house.settlementId = settlement.id;
       house.civilizationId = civilization.id;
