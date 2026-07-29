@@ -1,13 +1,12 @@
-import { Pathfinder } from "./Pathfinding";
 import { preferredWork } from "./Jobs";
 import { GameState } from "../app/GameState";
 import { allMaterialsDelivered, buildingCenter, materialMissing, Building } from "../entities/Building";
 import { ResourceType } from "../entities/Resources";
 import { say, setVillagerState } from "./VillagerStateMachine";
 import { Villager } from "../entities/Villager";
-import { Point, distance, tileKey } from "../utils/MathUtils";
-import { isWalkableTile, movementCost } from "../world/Tile";
-import { getTile, inBounds, setTileType } from "../world/World";
+import { Point, distance } from "../utils/MathUtils";
+import { isWalkableTile } from "../world/Tile";
+import { getTile } from "../world/World";
 import { addEvent } from "../simulation/EventSystem";
 
 const RESOURCE_TYPES: ResourceType[] = ["wood", "food", "stone"];
@@ -68,6 +67,22 @@ function completeAction(villager: Villager, state: GameState): void {
     }
   }
 
+  if (villager.state === "mineStone" && villager.targetTile) {
+    const tile = getTile(state.world, villager.targetTile.x, villager.targetTile.y);
+    if (tile && tile.type === "rock" && tile.resourceAmount > 0) {
+      const amount = Math.min(state.buildingEffects.workshopBonus ? 5 : 4, tile.resourceAmount + 1);
+      tile.resourceAmount -= 1;
+      if (tile.resourceAmount <= 0) {
+        tile.type = "grass";
+        state.world.version += 1;
+      }
+      villager.carrying = { type: "stone", amount };
+      say(villager, "+stone");
+      walkToStorage(villager, state, "deliverStone");
+      return;
+    }
+  }
+
   if (villager.state === "eat") {
     if (state.resources.food > 0) {
       state.resources.food -= 1;
@@ -82,7 +97,7 @@ function completeAction(villager: Villager, state: GameState): void {
   if (villager.state === "build" && villager.targetBuildingId) {
     const building = state.buildings.find((item) => item.id === villager.targetBuildingId);
     if (building && allMaterialsDelivered(building)) {
-      const work = state.buildingEffects.workshopBonus ? 8 : 5;
+      const work = state.buildingEffects.workshopBonus ? 13 : 9;
       building.status = "building";
       building.progress = Math.min(building.workRequired, building.progress + work);
       say(villager, "tap");
@@ -100,10 +115,13 @@ function completeAction(villager: Villager, state: GameState): void {
 function decideNextAction(villager: Villager, state: GameState): void {
   if (villager.health <= 0) return;
   if (villager.carrying) {
-    if (villager.state === "deliverMaterial" && villager.targetBuildingId) {
-      walkToBuilding(villager, state, villager.targetBuildingId, "deliverMaterial");
+    const targetBuildSite = villager.targetBuildingId
+      ? state.buildings.find((building) => building.id === villager.targetBuildingId && building.status !== "complete")
+      : undefined;
+    if (targetBuildSite && materialMissing(targetBuildSite, villager.carrying.type) > 0) {
+      walkToBuilding(villager, state, targetBuildSite.id, "deliverMaterial");
     } else {
-      walkToStorage(villager, state, villager.carrying.type === "wood" ? "deliverWood" : "deliverFood");
+      walkToStorage(villager, state, deliveryStateFor(villager.carrying.type));
     }
     return;
   }
@@ -123,7 +141,15 @@ function decideNextAction(villager: Villager, state: GameState): void {
   }
 
   const buildSite = findUsefulBuildSite(state);
-  if (buildSite && (villager.job === "builder" || state.rng.chance(0.28))) {
+  if (buildSite) {
+    const missingResource = missingStoredResourceForBuildSite(state, buildSite);
+    if (missingResource) {
+      gatherResource(villager, state, missingResource);
+      return;
+    }
+  }
+
+  if (buildSite && (villager.job === "builder" || state.rng.chance(0.62))) {
     if (!allMaterialsDelivered(buildSite)) {
       fetchMaterial(villager, state, buildSite);
     } else {
@@ -133,6 +159,10 @@ function decideNextAction(villager: Villager, state: GameState): void {
   }
 
   const work = preferredWork(villager);
+  if (state.resources.stone < Math.max(10, state.villagers.length) && (work === "build" || state.rng.chance(0.35))) {
+    findStone(villager, state);
+    return;
+  }
   if (state.resources.wood < 35 || work === "wood") {
     findTree(villager, state);
     return;
@@ -176,10 +206,15 @@ function arrive(villager: Villager, state: GameState): void {
       break;
     case "walkToTree":
       setVillagerState(villager, "chopTree");
-      villager.actionTimer = 2.7;
+      villager.actionTimer = 2.2;
+      break;
+    case "walkToStone":
+      setVillagerState(villager, "mineStone");
+      villager.actionTimer = 2.4;
       break;
     case "deliverWood":
     case "deliverFood":
+    case "deliverStone":
       if (villager.carrying) {
         state.resources[villager.carrying.type] += villager.carrying.amount;
         say(villager, "drop");
@@ -231,7 +266,23 @@ function findTree(villager: Villager, state: GameState): void {
   setPath(villager, state, tile, "walkToTree");
 }
 
-function walkToStorage(villager: Villager, state: GameState, nextState: "deliverWood" | "deliverFood" | "eat"): void {
+function findStone(villager: Villager, state: GameState): void {
+  setVillagerState(villager, "findStone");
+  const tile = findNearestTile(
+    state,
+    villager,
+    (candidate) => candidate.type === "rock" && candidate.resourceAmount > 0,
+    Math.max(state.world.width, state.world.height)
+  );
+  if (!tile) {
+    wander(villager, state);
+    return;
+  }
+  villager.targetTile = { x: tile.x, y: tile.y };
+  setPath(villager, state, tile, "walkToStone");
+}
+
+function walkToStorage(villager: Villager, state: GameState, nextState: "deliverWood" | "deliverFood" | "deliverStone" | "eat"): void {
   const storage = nearestCompletedBuilding(state, villager, "storage") ?? nearestCompletedBuilding(state, villager, "campfire");
   if (!storage) {
     setVillagerState(villager, "idle");
@@ -244,7 +295,7 @@ function walkToBuilding(
   villager: Villager,
   state: GameState,
   buildingId: string,
-  nextState: "deliverMaterial" | "walkToBuildSite" | "deliverWood" | "deliverFood" | "eat"
+  nextState: "deliverMaterial" | "walkToBuildSite" | "deliverWood" | "deliverFood" | "deliverStone" | "eat"
 ): void {
   const building = state.buildings.find((item) => item.id === buildingId);
   if (!building) return;
@@ -260,7 +311,7 @@ function walkToBuilding(
 function fetchMaterial(villager: Villager, state: GameState, building: Building): void {
   for (const resource of RESOURCE_TYPES) {
     if (materialMissing(building, resource) > 0 && state.resources[resource] > 0) {
-      const amount = Math.min(5, state.resources[resource], materialMissing(building, resource));
+      const amount = Math.min(8, state.resources[resource], materialMissing(building, resource));
       state.resources[resource] -= amount;
       villager.carrying = { type: resource, amount };
       villager.targetBuildingId = building.id;
@@ -269,6 +320,16 @@ function fetchMaterial(villager: Villager, state: GameState, building: Building)
     }
   }
   setVillagerState(villager, "idle");
+}
+
+function gatherResource(villager: Villager, state: GameState, resource: ResourceType): void {
+  if (resource === "wood") findTree(villager, state);
+  else if (resource === "food") findFood(villager, state);
+  else findStone(villager, state);
+}
+
+function missingStoredResourceForBuildSite(state: GameState, building: Building): ResourceType | undefined {
+  return RESOURCE_TYPES.find((resource) => materialMissing(building, resource) > 0 && state.resources[resource] <= 0);
 }
 
 function deliverMaterial(villager: Villager, state: GameState): void {
@@ -334,6 +395,16 @@ function fleeFire(villager: Villager, state: GameState): void {
 function setPath(villager: Villager, state: GameState, target: Point, nextState: typeof villager.state): void {
   const result = state.pathfinder.findPath(state.world, villager, target);
   if (result.path.length <= 1) {
+    if (Math.hypot(villager.x - (target.x + 0.5), villager.y - (target.y + 0.5)) < 1.2) {
+      villager.x = target.x + 0.5;
+      villager.y = target.y + 0.5;
+      villager.path = [];
+      villager.targetX = villager.x;
+      villager.targetY = villager.y;
+      setVillagerState(villager, nextState);
+      arrive(villager, state);
+      return;
+    }
     setVillagerState(villager, "idle");
     return;
   }
@@ -343,12 +414,22 @@ function setPath(villager: Villager, state: GameState, target: Point, nextState:
   setVillagerState(villager, nextState);
 }
 
-function findNearestTile(state: GameState, villager: Villager, predicate: (tile: NonNullable<ReturnType<typeof getTile>>) => boolean) {
+function deliveryStateFor(resource: ResourceType): "deliverWood" | "deliverFood" | "deliverStone" {
+  if (resource === "wood") return "deliverWood";
+  if (resource === "food") return "deliverFood";
+  return "deliverStone";
+}
+
+function findNearestTile(
+  state: GameState,
+  villager: Villager,
+  predicate: (tile: NonNullable<ReturnType<typeof getTile>>) => boolean,
+  radius = 48
+) {
   const startX = Math.floor(villager.x);
   const startY = Math.floor(villager.y);
   let best = undefined as NonNullable<ReturnType<typeof getTile>> | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
-  const radius = 32;
 
   for (let y = Math.max(0, startY - radius); y <= Math.min(state.world.height - 1, startY + radius); y += 1) {
     for (let x = Math.max(0, startX - radius); x <= Math.min(state.world.width - 1, startX + radius); x += 1) {
@@ -465,6 +546,14 @@ function buildingLabel(type: Building["type"]): string {
       return "de werkplaats";
     case "watchtower":
       return "de uitkijktoren";
+    case "well":
+      return "de waterput";
+    case "market":
+      return "de markt";
+    case "school":
+      return "de school";
+    case "monument":
+      return "het monument";
   }
 }
 

@@ -73,6 +73,15 @@ export interface BuildingEffects {
   workshopBonus: boolean;
 }
 
+export interface CivilizationState {
+  level: number;
+  title: string;
+  prosperity: number;
+  knowledge: number;
+  culture: number;
+  nextGoal: string;
+}
+
 export interface GameState {
   world: World;
   rng: SeededRandom;
@@ -95,6 +104,7 @@ export interface GameState {
   lastAutosaveAt: number;
   debug: DebugState;
   buildingEffects: BuildingEffects;
+  civilization: CivilizationState;
 }
 
 export const DEFAULT_SETTINGS: SettingsState = {
@@ -107,6 +117,17 @@ export const DEFAULT_SETTINGS: SettingsState = {
   autosave: true,
   dayNightSpeed: 1
 };
+
+export function defaultCivilizationState(): CivilizationState {
+  return {
+    level: 0,
+    title: "Kamp",
+    prosperity: 0,
+    knowledge: 0,
+    culture: 0,
+    nextGoal: "bouw het eerste huis"
+  };
+}
 
 export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, settings: SettingsState = DEFAULT_SETTINGS): GameState {
   const world = generateWorld(seed, size);
@@ -135,7 +156,7 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     pathfinder: new Pathfinder(),
     villagers,
     buildings,
-    resources: { wood: 10, food: 35, stone: 4 },
+    resources: { wood: 26, food: 55, stone: 10 },
     time: {
       day: 1,
       minutes: 8 * 60,
@@ -171,7 +192,8 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     buildingEffects: {
       woodBonus: false,
       workshopBonus: false
-    }
+    },
+    civilization: defaultCivilizationState()
   };
 
   state.events.push({

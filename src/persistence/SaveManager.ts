@@ -1,4 +1,4 @@
-import { GameState, DEFAULT_SETTINGS, SettingsState } from "../app/GameState";
+import { defaultCivilizationState, GameState, DEFAULT_SETTINGS, SettingsState } from "../app/GameState";
 import { IdGenerator } from "../utils/IdGenerator";
 import { Pathfinder } from "../ai/Pathfinding";
 import { SeededRandom } from "../world/SeededRandom";
@@ -98,7 +98,8 @@ export class SaveManager {
       buildingEffects: {
         woodBonus: false,
         workshopBonus: false
-      }
+      },
+      civilization: { ...defaultCivilizationState(), ...(migrated.civilization ?? {}) }
     };
     refreshBuildingEffects(state);
     return state;

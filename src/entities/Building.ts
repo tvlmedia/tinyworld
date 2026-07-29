@@ -8,7 +8,11 @@ export type BuildingType =
   | "woodcutter"
   | "farm"
   | "workshop"
-  | "watchtower";
+  | "watchtower"
+  | "well"
+  | "market"
+  | "school"
+  | "monument";
 
 export type BuildingStatus = "planned" | "building" | "complete";
 
@@ -57,7 +61,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     width: 3,
     height: 2,
     costs: { wood: 8 },
-    buildWorkRequired: 18,
+    buildWorkRequired: 16,
     storageCapacity: 180
   },
   house: {
@@ -65,8 +69,8 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     label: "Huis",
     width: 3,
     height: 3,
-    costs: { wood: 22, stone: 2 },
-    buildWorkRequired: 42,
+    costs: { wood: 20, stone: 2 },
+    buildWorkRequired: 34,
     capacity: 4
   },
   woodcutter: {
@@ -74,32 +78,65 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     label: "Houthakkershut",
     width: 3,
     height: 2,
-    costs: { wood: 16, stone: 4 },
-    buildWorkRequired: 34
+    costs: { wood: 14, stone: 4 },
+    buildWorkRequired: 28
   },
   farm: {
     type: "farm",
     label: "Boerderij",
     width: 4,
     height: 3,
-    costs: { wood: 12 },
-    buildWorkRequired: 30
+    costs: { wood: 10 },
+    buildWorkRequired: 24
   },
   workshop: {
     type: "workshop",
     label: "Werkplaats",
     width: 4,
     height: 3,
-    costs: { wood: 26, stone: 12 },
-    buildWorkRequired: 56
+    costs: { wood: 24, stone: 8 },
+    buildWorkRequired: 48
   },
   watchtower: {
     type: "watchtower",
     label: "Uitkijktoren",
     width: 2,
     height: 2,
-    costs: { wood: 18, stone: 8 },
-    buildWorkRequired: 38
+    costs: { wood: 16, stone: 8 },
+    buildWorkRequired: 34
+  },
+  well: {
+    type: "well",
+    label: "Waterput",
+    width: 2,
+    height: 2,
+    costs: { wood: 8, stone: 4 },
+    buildWorkRequired: 24
+  },
+  market: {
+    type: "market",
+    label: "Markt",
+    width: 4,
+    height: 3,
+    costs: { wood: 26, stone: 6 },
+    buildWorkRequired: 46,
+    storageCapacity: 90
+  },
+  school: {
+    type: "school",
+    label: "School",
+    width: 4,
+    height: 3,
+    costs: { wood: 32, stone: 10 },
+    buildWorkRequired: 58
+  },
+  monument: {
+    type: "monument",
+    label: "Monument",
+    width: 3,
+    height: 3,
+    costs: { wood: 12, stone: 18 },
+    buildWorkRequired: 68
   }
 };
 

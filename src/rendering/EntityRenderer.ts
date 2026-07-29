@@ -72,8 +72,51 @@ export class EntityRenderer {
       return;
     }
 
-    const body = building.type === "storage" ? "#b07b52" : building.type === "workshop" ? "#8a6b91" : "#b86f58";
-    const roof = building.type === "watchtower" ? "#6d573c" : "#7c4f3f";
+    if (building.type === "well") {
+      ctx.fillStyle = "#6e6154";
+      ctx.beginPath();
+      ctx.ellipse(x + width * 0.5, y + height * 0.58, width * 0.34, height * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#4d91b7";
+      ctx.beginPath();
+      ctx.ellipse(x + width * 0.5, y + height * 0.55, width * 0.22, height * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#7b5236";
+      ctx.fillRect(x + width * 0.22, y + height * 0.22, width * 0.1, height * 0.48);
+      ctx.fillRect(x + width * 0.68, y + height * 0.22, width * 0.1, height * 0.48);
+      ctx.fillStyle = "#7c4f3f";
+      ctx.fillRect(x + width * 0.25, y + height * 0.16, width * 0.5, height * 0.12);
+      return;
+    }
+
+    if (building.type === "monument") {
+      ctx.fillStyle = "#797f86";
+      ctx.fillRect(x + width * 0.2, y + height * 0.75, width * 0.6, height * 0.12);
+      ctx.fillStyle = "#aeb4bb";
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.5, y + height * 0.13);
+      ctx.lineTo(x + width * 0.68, y + height * 0.75);
+      ctx.lineTo(x + width * 0.32, y + height * 0.75);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 230, 145, 0.28)";
+      ctx.beginPath();
+      ctx.arc(x + width * 0.5, y + height * 0.23, width * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    const body =
+      building.type === "storage"
+        ? "#b07b52"
+        : building.type === "workshop"
+          ? "#8a6b91"
+          : building.type === "market"
+            ? "#c98945"
+            : building.type === "school"
+              ? "#6d8eb4"
+              : "#b86f58";
+    const roof = building.type === "watchtower" ? "#6d573c" : building.type === "market" ? "#b4473e" : "#7c4f3f";
     ctx.fillStyle = body;
     ctx.fillRect(x + width * 0.12, y + height * 0.35, width * 0.76, height * 0.52);
     ctx.fillStyle = roof;
@@ -86,14 +129,32 @@ export class EntityRenderer {
     ctx.fillStyle = "#4b382c";
     ctx.fillRect(x + width * 0.42, y + height * 0.6, width * 0.16, height * 0.27);
 
+    if (building.type === "market") {
+      ctx.fillStyle = "#f1d36b";
+      ctx.fillRect(x + width * 0.18, y + height * 0.46, width * 0.18, height * 0.16);
+      ctx.fillStyle = "#7bb661";
+      ctx.fillRect(x + width * 0.64, y + height * 0.46, width * 0.18, height * 0.16);
+    }
+
+    if (building.type === "school") {
+      ctx.fillStyle = "#f4e3a1";
+      ctx.fillRect(x + width * 0.18, y + height * 0.5, width * 0.18, height * 0.15);
+      ctx.fillRect(x + width * 0.64, y + height * 0.5, width * 0.18, height * 0.15);
+      ctx.strokeStyle = "rgba(44, 58, 71, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.5, y + height * 0.2);
+      ctx.lineTo(x + width * 0.5, y + height * 0.38);
+      ctx.stroke();
+    }
+
     const light = 1 - daylightAmount(state.time.minutes);
-    if (light > 0.18 && (building.type === "house" || building.type === "workshop")) {
+    if (light > 0.18 && (building.type === "house" || building.type === "workshop" || building.type === "market" || building.type === "school")) {
       ctx.fillStyle = `rgba(255, 209, 104, ${light * 0.9})`;
       ctx.fillRect(x + width * 0.22, y + height * 0.52, width * 0.14, height * 0.13);
       ctx.fillRect(x + width * 0.64, y + height * 0.52, width * 0.14, height * 0.13);
     }
 
-    if (building.type === "house" || building.type === "workshop") {
+    if (building.type === "house" || building.type === "workshop" || building.type === "school") {
       ctx.fillStyle = "rgba(85, 85, 85, 0.55)";
       const smokeX = x + width * 0.68 + Math.sin(time * 0.002) * 3;
       ctx.beginPath();

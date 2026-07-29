@@ -39,7 +39,7 @@ export function inspectorHtml(state: GameState): string {
         <dt>Materiaal</dt><dd>${allMaterialsDelivered(building) ? "klaar" : costLabel(building.type)}</dd>
         <dt>Bedden</dt><dd>${building.capacity}</dd>
         <dt>Opslagruimte</dt><dd>${building.storageCapacity}</dd>
-        <dt>Productie</dt><dd>${building.type === "farm" ? "voedsel" : building.type === "woodcutter" ? "sneller hout" : "-"}</dd>
+        <dt>Productie</dt><dd>${buildingProductionLabel(building.type)}</dd>
       </dl>
     `;
   }
@@ -61,6 +61,29 @@ export function inspectorHtml(state: GameState): string {
   }
 
   return emptyInspector();
+}
+
+function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): string {
+  switch (type) {
+    case "farm":
+      return "voedsel";
+    case "woodcutter":
+      return "hout";
+    case "workshop":
+      return "steen en sneller bouwen";
+    case "well":
+      return "gezondheid";
+    case "market":
+      return "welvaart en handel";
+    case "school":
+      return "kennis";
+    case "monument":
+      return "cultuur";
+    case "watchtower":
+      return "veiligheid";
+    default:
+      return "-";
+  }
 }
 
 function emptyInspector(): string {

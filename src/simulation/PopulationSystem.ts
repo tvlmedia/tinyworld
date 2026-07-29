@@ -6,8 +6,10 @@ import { isWalkableTile } from "../world/Tile";
 import { addEvent } from "./EventSystem";
 
 export function updatePopulation(state: GameState, dt: number): void {
+  if (state.villagers.length >= 100) return;
   state.populationTimer += dt;
-  if (state.populationTimer < 95) return;
+  const growthInterval = Math.max(48, 82 - state.civilization.level * 8);
+  if (state.populationTimer < growthInterval) return;
   state.populationTimer = 0;
 
   const capacity = state.buildings
@@ -16,17 +18,24 @@ export function updatePopulation(state: GameState, dt: number): void {
   const averageHappiness =
     state.villagers.reduce((sum, villager) => sum + villager.happiness, 0) / Math.max(1, state.villagers.length);
 
-  if (state.resources.food < state.villagers.length * 11 || capacity <= state.villagers.length || averageHappiness < 58 || state.fires.length > 0) {
+  if (state.resources.food < state.villagers.length * 9 || capacity <= state.villagers.length || averageHappiness < 52 || state.fires.length > 0) {
     return;
   }
 
+  spawnVillager(state);
+  if (state.villagers.length < 100 && state.civilization.level >= 2 && capacity - state.villagers.length >= 2 && state.resources.food > state.villagers.length * 12) {
+    spawnVillager(state);
+  }
+}
+
+function spawnVillager(state: GameState): void {
   const position = findSpawnTile(state);
   if (!position) return;
   state.resources.food -= 10;
   const index = state.villagers.length;
   const name = villagerName(index);
   state.villagers.push(createVillager(state.ids.next("villager"), name, position.x + 0.5, position.y + 0.5, assignJobByIndex(index), 0));
-  addEvent(state, `${name} sloot zich aan bij het dorp.`);
+  addEvent(state, state.civilization.level >= 2 ? `${name} werd geboren in ${state.world.name}.` : `${name} sloot zich aan bij het dorp.`);
 }
 
 function findSpawnTile(state: GameState): { x: number; y: number } | undefined {

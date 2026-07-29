@@ -1,5 +1,5 @@
 import { GAME_VERSION } from "../app/Config";
-import { GameState, WeatherState, FireState, TimeState, SettingsState } from "../app/GameState";
+import { CivilizationState, GameState, WeatherState, FireState, TimeState, SettingsState } from "../app/GameState";
 import { Building } from "../entities/Building";
 import { ResourceStore } from "../entities/Resources";
 import { Villager } from "../entities/Villager";
@@ -39,6 +39,7 @@ export interface SaveGame {
   fires: FireState[];
   events: GameEvent[];
   settings: SettingsState;
+  civilization?: CivilizationState;
 }
 
 export function serializeGame(state: GameState): SaveGame {
@@ -53,7 +54,8 @@ export function serializeGame(state: GameState): SaveGame {
     weather: state.weather,
     fires: state.fires,
     events: state.events,
-    settings: state.settings
+    settings: state.settings,
+    civilization: state.civilization
   };
 }
 

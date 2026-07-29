@@ -1,4 +1,4 @@
-export const GAME_VERSION = 1;
+export const GAME_VERSION = 2;
 
 export const DEFAULT_WORLD_SIZE = 128;
 export const TILE_SIZE = 16;

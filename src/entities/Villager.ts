@@ -14,8 +14,12 @@ export type VillagerState =
   | "findTree"
   | "walkToTree"
   | "chopTree"
+  | "findStone"
+  | "walkToStone"
+  | "mineStone"
   | "deliverWood"
   | "deliverFood"
+  | "deliverStone"
   | "fetchMaterial"
   | "deliverMaterial"
   | "walkToBuildSite"
@@ -123,10 +127,16 @@ export function describeState(state: VillagerState): string {
     case "walkToTree":
     case "chopTree":
       return "verzamelt hout";
+    case "findStone":
+    case "walkToStone":
+    case "mineStone":
+      return "delft steen";
     case "deliverWood":
       return "brengt hout weg";
     case "deliverFood":
       return "brengt voedsel weg";
+    case "deliverStone":
+      return "brengt steen weg";
     case "fetchMaterial":
     case "deliverMaterial":
       return "vervoert bouwmateriaal";

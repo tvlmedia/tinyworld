@@ -9,7 +9,7 @@ import { isStorageNearCapacity } from "./ResourceSystem";
 export function updateSettlementPlanner(state: GameState, dt: number): void {
   state.plannerTimer -= dt;
   if (state.plannerTimer > 0) return;
-  state.plannerTimer = 18;
+  state.plannerTimer = 9;
 
   if (state.buildings.some((building) => building.status !== "complete")) return;
 
@@ -28,13 +28,20 @@ export function chooseNextBuilding(state: GameState): BuildingType | undefined {
   const bedCapacity = state.buildings
     .filter((building) => building.status === "complete" && building.type === "house")
     .reduce((sum, building) => sum + building.capacity, 0);
+  const desiredFarms = Math.min(4, Math.max(1, Math.ceil(state.villagers.length / 6)));
 
-  if (bedCapacity < state.villagers.length && !planned("house")) return "house";
-  if (state.resources.food < Math.max(30, state.villagers.length * 7) && completed("farm") < 2 && !planned("farm")) return "farm";
-  if (state.resources.wood < 28 && completed("woodcutter") < 1 && !planned("woodcutter") && state.time.day >= 2) return "woodcutter";
+  if (bedCapacity < state.villagers.length + 2 && !planned("house")) return "house";
+  if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
+  if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
+  if (state.villagers.length >= 6 && completed("well") < 1 && !planned("well")) return "well";
   if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < 3 && !planned("storage")) return "storage";
   if (state.villagers.length >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
-  if (state.villagers.length >= 9 && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
+  if (state.villagers.length >= 8 && completed("market") < 1 && !planned("market")) return "market";
+  if (state.villagers.length >= 10 && completed("school") < 1 && !planned("school")) return "school";
+  if (state.villagers.length >= 11 && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
+  if (state.civilization.level >= 3 && completed("monument") < 1 && !planned("monument")) return "monument";
+  if (state.villagers.length >= 12 && completed("farm") < 4 && !planned("farm")) return "farm";
+  if (state.villagers.length >= 14 && completed("storage") < 4 && !planned("storage")) return "storage";
   return undefined;
 }
 

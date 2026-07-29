@@ -10,6 +10,7 @@ export function hudSummary(state: GameState): string {
     <div class="topbar__title">
       <strong>${state.world.name}</strong>
       <span>Seed: ${state.world.seed}</span>
+      <span>Fase: ${state.civilization.title}</span>
     </div>
     <div class="topbar__stats">
       <span>Dag ${state.time.day}</span>
@@ -24,6 +25,9 @@ export function hudSummary(state: GameState): string {
       <span>Steen <strong>${Math.floor(state.resources.stone)}</strong></span>
       <span>Gebouwen <strong>${state.buildings.length}</strong></span>
       <span>Geluk <strong>${happiness}</strong></span>
+      <span>Kennis <strong>${Math.floor(state.civilization.knowledge)}</strong></span>
+      <span>Welvaart <strong>${Math.floor(state.civilization.prosperity)}</strong></span>
+      <span>Doel <strong>${state.civilization.nextGoal}</strong></span>
     </div>
   `;
 }
