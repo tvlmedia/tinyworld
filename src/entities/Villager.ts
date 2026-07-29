@@ -25,6 +25,10 @@ export type VillagerState =
   | "walkToBuildSite"
   | "build"
   | "sleep"
+  | "walkToWater"
+  | "collectWater"
+  | "walkToFire"
+  | "extinguishFire"
   | "fleeFire";
 
 export interface Carrying {
@@ -57,6 +61,9 @@ export interface Villager {
   actionTimer: number;
   targetTile?: Point;
   targetBuildingId?: string;
+  emergencyFire?: Point;
+  emergencyWater?: Point;
+  carryingWater?: number;
   speech?: string;
   speechTimer: number;
 }
@@ -148,6 +155,14 @@ export function describeState(state: VillagerState): string {
       return "werkt aan een gebouw";
     case "sleep":
       return "slaapt";
+    case "walkToWater":
+      return "haalt bluswater";
+    case "collectWater":
+      return "vult een emmer";
+    case "walkToFire":
+      return "brengt water naar de brand";
+    case "extinguishFire":
+      return "blust de brand";
     case "fleeFire":
       return "vlucht voor vuur";
   }

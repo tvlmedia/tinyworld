@@ -105,6 +105,10 @@ function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): strin
       return "steen en sneller bouwen";
     case "well":
       return "gezondheid";
+    case "reservoir":
+      return "bluswater en brandbeveiliging";
+    case "firestation":
+      return "snellere georganiseerde brandweer";
     case "market":
       return "welvaart en handel";
     case "school":

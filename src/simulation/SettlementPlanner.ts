@@ -51,6 +51,10 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
   if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
   if (population >= 10 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
+  if (population >= 24 && unlocked("reservoir") && completed("reservoir") < 1 && !planned("reservoir")) return "reservoir";
+  if (population >= 35 && unlocked("firestation") && completed("firestation") < Math.max(1, Math.floor(population / 55)) && !planned("firestation")) {
+    return "firestation";
+  }
   const desiredForestry = population >= 42 ? 2 : 1;
   const needsScaledWood =
     population >= 20 &&

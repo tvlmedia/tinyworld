@@ -133,6 +133,36 @@ export class EntityRenderer {
       return;
     }
 
+    if (building.type === "reservoir") {
+      ctx.fillStyle = "#6f7773";
+      ctx.fillRect(x + width * 0.08, y + height * 0.18, width * 0.84, height * 0.68);
+      ctx.fillStyle = "#4d91b7";
+      ctx.fillRect(x + width * 0.16, y + height * 0.28, width * 0.68, height * 0.48);
+      ctx.strokeStyle = "rgba(224, 236, 230, 0.65)";
+      ctx.lineWidth = Math.max(1, width * 0.025);
+      ctx.strokeRect(x + width * 0.16, y + height * 0.28, width * 0.68, height * 0.48);
+      return;
+    }
+
+    if (building.type === "firestation") {
+      ctx.fillStyle = "#b8b1a4";
+      ctx.fillRect(x + width * 0.08, y + height * 0.3, width * 0.84, height * 0.58);
+      ctx.fillStyle = "#a43e35";
+      ctx.fillRect(x + width * 0.16, y + height * 0.48, width * 0.28, height * 0.4);
+      ctx.fillRect(x + width * 0.56, y + height * 0.48, width * 0.28, height * 0.4);
+      ctx.fillStyle = "#d8d2bf";
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.04, y + height * 0.32);
+      ctx.lineTo(x + width * 0.5, y + height * 0.08);
+      ctx.lineTo(x + width * 0.96, y + height * 0.32);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#c94c3f";
+      ctx.fillRect(x + width * 0.47, y + height * 0.12, width * 0.06, height * 0.16);
+      ctx.fillRect(x + width * 0.42, y + height * 0.17, width * 0.16, height * 0.06);
+      return;
+    }
+
     if (building.type === "monument") {
       ctx.fillStyle = "#797f86";
       ctx.fillRect(x + width * 0.2, y + height * 0.75, width * 0.6, height * 0.12);

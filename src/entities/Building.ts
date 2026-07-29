@@ -12,6 +12,8 @@ export type BuildingType =
   | "workshop"
   | "watchtower"
   | "well"
+  | "reservoir"
+  | "firestation"
   | "market"
   | "school"
   | "monument";
@@ -134,6 +136,22 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     height: 2,
     costs: { wood: 8, stone: 4 },
     buildWorkRequired: 24
+  },
+  reservoir: {
+    type: "reservoir",
+    label: "Waterreservoir",
+    width: 4,
+    height: 3,
+    costs: { wood: 18, stone: 16 },
+    buildWorkRequired: 44
+  },
+  firestation: {
+    type: "firestation",
+    label: "Brandweerkazerne",
+    width: 5,
+    height: 3,
+    costs: { wood: 30, stone: 24 },
+    buildWorkRequired: 68
   },
   market: {
     type: "market",

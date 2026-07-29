@@ -9,6 +9,7 @@ import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
 import { addEvent } from "../simulation/EventSystem";
 import { assignHomes, hasValidHome } from "../simulation/HousingSystem";
+import { beginEmergencyAction, completeEmergencyAction } from "../simulation/EmergencyResponseSystem";
 
 const RESOURCE_TYPES: ResourceType[] = ["wood", "food", "stone"];
 
@@ -20,7 +21,7 @@ export function updateVillager(villager: Villager, state: GameState, dt: number)
   villager.speechTimer = Math.max(0, villager.speechTimer - dt);
   if (villager.speechTimer <= 0) villager.speech = undefined;
 
-  if (isFireNearby(villager, state)) {
+  if (!villager.emergencyFire && isFireNearby(villager, state)) {
     fleeFire(villager, state);
   }
 
@@ -39,6 +40,8 @@ export function updateVillager(villager: Villager, state: GameState, dt: number)
 }
 
 function completeAction(villager: Villager, state: GameState): void {
+  if (completeEmergencyAction(villager, state)) return;
+
   if (villager.state === "gatherFood" && villager.targetTile) {
     const tile = getTile(state.world, villager.targetTile.x, villager.targetTile.y);
     if (tile && tile.resourceAmount > 0) {
@@ -239,6 +242,11 @@ function arrive(villager: Villager, state: GameState): void {
       villager.actionTimer = 5;
       villager.energy = Math.min(100, villager.energy + 34);
       villager.happiness = clampStat(villager.happiness + 1.5);
+      break;
+    case "walkToWater":
+    case "walkToFire":
+      if (beginEmergencyAction(villager)) break;
+      setVillagerState(villager, "idle");
       break;
     default:
       setVillagerState(villager, "idle");
@@ -464,7 +472,17 @@ function findNearestTile(
 }
 
 function findUsefulBuildSite(state: GameState): Building | undefined {
-  return state.buildings.find((building) => building.status !== "complete");
+  return state.buildings.find(
+    (building) =>
+      building.status !== "complete" &&
+      !state.fires.some(
+        (fire) =>
+          fire.x >= building.x - 3 &&
+          fire.y >= building.y - 3 &&
+          fire.x < building.x + building.width + 3 &&
+          fire.y < building.y + building.height + 3
+      )
+  );
 }
 
 function nearestCompletedBuilding(state: GameState, point: Point, type: Building["type"]): Building | undefined {
@@ -653,6 +671,10 @@ function buildingLabel(type: Building["type"]): string {
       return "de uitkijktoren";
     case "well":
       return "de waterput";
+    case "reservoir":
+      return "het waterreservoir";
+    case "firestation":
+      return "de brandweerkazerne";
     case "market":
       return "de markt";
     case "school":

@@ -6,6 +6,8 @@ import { addHistoricalEvent } from "./HistorySystem";
 
 const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, string>> = {
   forestry: "woodworking",
+  reservoir: "masonry",
+  firestation: "fire_safety",
   market: "markets",
   school: "writing",
   watchtower: "fortification",

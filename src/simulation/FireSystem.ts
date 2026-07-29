@@ -1,4 +1,4 @@
-import { FireState, GameState, releaseBuildingTiles } from "../app/GameState";
+import { FireState, GameState, occupyBuildingTiles, releaseBuildingTiles } from "../app/GameState";
 import { BUILDING_DEFINITIONS, Building } from "../entities/Building";
 import { neighbors4 } from "../utils/MathUtils";
 import { getTile } from "../world/World";
@@ -58,7 +58,8 @@ export function clearAllFires(state: GameState): void {
 }
 
 function spreadFire(state: GameState, fire: FireState, newFires: FireState[]): void {
-  const spreadChance = state.weather.current === "drought" ? 0.55 : state.weather.current === "rain" ? 0.06 : 0.25;
+  const baseSpreadChance = state.weather.current === "drought" ? 0.55 : state.weather.current === "rain" ? 0.06 : 0.25;
+  const spreadChance = baseSpreadChance * fireSpreadMultiplier(state, fire.x, fire.y);
   for (const neighbor of neighbors4(fire)) {
     if (!state.rng.chance(spreadChance)) continue;
     const tile = getTile(state.world, neighbor.x, neighbor.y);
@@ -73,9 +74,11 @@ function spreadFire(state: GameState, fire: FireState, newFires: FireState[]): v
 function damageBuildingsAt(state: GameState, fire: FireState, dt: number): void {
   const destroyed: Building[] = [];
   for (const building of state.buildings) {
+    if (building.status !== "complete") continue;
     const inside = fire.x >= building.x && fire.y >= building.y && fire.x < building.x + building.width && fire.y < building.y + building.height;
     if (!inside) continue;
-    building.health -= fire.intensity * dt * 3.4;
+    const resistance = building.visualEra === "stone" || building.visualEra === "industry" ? 0.58 : 1;
+    building.health -= fire.intensity * dt * 3.4 * resistance;
     if (building.health <= 0) {
       building.health = 0;
       destroyed.push(building);
@@ -119,13 +122,20 @@ function destroyBuilding(state: GameState, building: Building, fire: FireState):
   const casualtyCount = removeCasualties(state, casualties, "kwam om toen een gebouw afbrandde.");
   releaseBuildingTiles(state.world, building);
   scorchFootprint(state, building);
-  state.buildings = state.buildings.filter((item) => item.id !== building.id);
-  if (state.selected.kind === "building" && state.selected.id === building.id) state.selected = { kind: "none" };
+  const costs = BUILDING_DEFINITIONS[building.type].costs;
+  building.status = "planned";
+  building.health = building.maxHealth;
+  building.progress = 0;
+  building.productionTimer = 0;
+  building.materialsDelivered.wood = Math.floor((costs.wood ?? 0) * 0.3);
+  building.materialsDelivered.food = Math.floor((costs.food ?? 0) * 0.3);
+  building.materialsDelivered.stone = Math.floor((costs.stone ?? 0) * 0.45);
+  occupyBuildingTiles(state.world, building);
   state.pathfinder.clear();
 
   const label = BUILDING_DEFINITIONS[building.type].label.toLowerCase();
   const victims = casualtyCount === 1 ? " 1 bewoner kwam om." : casualtyCount > 1 ? ` ${casualtyCount} bewoners kwamen om.` : "";
-  addEvent(state, `De ${label} brandde af.${victims}`);
+  addEvent(state, `De ${label} brandde af.${victims} Bewoners bergen materiaal en herbouwen zodra het veilig is.`);
 }
 
 function removeCasualties(state: GameState, casualties: Set<string>, fallbackText: string): number {
@@ -158,4 +168,20 @@ function fireFuelForTile(state: GameState, x: number, y: number): number {
   if (tile.type === "grass" || tile.type === "farmland") return 2.6;
   if (tile.type === "road" || tile.type === "burned") return 0.9;
   return 1.5;
+}
+
+function fireSpreadMultiplier(state: GameState, x: number, y: number): number {
+  let multiplier = 1;
+  const roadBreaks = neighbors4({ x, y }).filter((point) => getTile(state.world, point.x, point.y)?.type === "road").length;
+  if (roadBreaks >= 2) multiplier *= 0.58;
+  const protectedByWater = state.buildings.some(
+    (building) =>
+      building.status === "complete" &&
+      !!building.civilizationId &&
+      (building.type === "well" || building.type === "reservoir" || building.type === "firestation") &&
+      Math.hypot(building.x + building.width / 2 - x, building.y + building.height / 2 - y) <
+        (building.type === "firestation" ? 24 : building.type === "reservoir" ? 18 : 11)
+  );
+  if (protectedByWater) multiplier *= 0.68;
+  return multiplier;
 }

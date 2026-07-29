@@ -4,6 +4,7 @@ import { updateCivilization } from "./CivilizationSystem";
 import { updateDiplomacyAndTrade } from "./DiplomacySystem";
 import { updateExpansion } from "./ExpansionSystem";
 import { updateFire } from "./FireSystem";
+import { updateEmergencyResponse } from "./EmergencyResponseSystem";
 import { updateHousing } from "./HousingSystem";
 import { updateNature } from "./NatureSystem";
 import { updatePopulation } from "./PopulationSystem";
@@ -36,6 +37,7 @@ export class Simulation {
     updateWarfare(state, dt);
     updateStability(state, dt);
     updateFire(state, dt);
+    updateEmergencyResponse(state);
     updateHousing(state);
     updateCooldowns(state, dt);
     refreshBuildingEffects(state);

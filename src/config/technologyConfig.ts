@@ -165,6 +165,20 @@ export const TECHNOLOGIES: TechnologyDefinition[] = [
     weights: { militaristic: 5, isolationist: 4 }
   },
   {
+    id: "fire_safety",
+    name: "Georganiseerde brandweer",
+    era: "engineering",
+    description: "Reservoirs, brandgangen en vaste ploegen beperken grote stadsbranden.",
+    researchCost: 90,
+    prerequisites: ["masonry"],
+    unlocks: [
+      { type: "building", target: "reservoir", value: 1 },
+      { type: "building", target: "firestation", value: 1 },
+      { type: "economyBonus", target: "firefighting", value: 1.35 }
+    ],
+    weights: { industrious: 4, innovative: 3, isolationist: 2 }
+  },
+  {
     id: "industry",
     name: "Vroege industrie",
     era: "industry",
