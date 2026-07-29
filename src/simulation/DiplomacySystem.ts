@@ -1,13 +1,10 @@
-import { assignJobByIndex } from "../ai/Jobs";
-import { createBuildingAt, GameState, worldYear } from "../app/GameState";
-import { CIVILIZATION_PREFIXES, CIVILIZATION_SUFFIXES, CIVILIZATION_TRAITS, SETTLEMENT_PREFIXES, SETTLEMENT_SUFFIXES } from "../config/civilizationConfig";
+import { GameState, worldYear } from "../app/GameState";
 import { DIPLOMACY, TRADE } from "../config/diplomacyConfig";
 import { Civilization, DiplomaticRelation, DiplomaticStatus, Settlement, TradeRoute } from "../entities/Civilization";
-import { createVillager, villagerName } from "../entities/Villager";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
 import { areLandConnected, hasHarbor } from "../world/Maritime";
-import { forceTerritoryRefresh } from "./CivilizationSystem";
+import { foundIndependentCivilizationAt } from "./CivilizationFoundationSystem";
 import { addHistoricalEvent } from "./HistorySystem";
 
 export function updateDiplomacyAndTrade(state: GameState, dt: number): void {
@@ -171,89 +168,7 @@ function maybeSpawnIndependentCivilization(state: GameState): void {
     if (!best || score > best.score) best = { x, y, score };
   }
   if (!best || best.score < 8) return;
-  const civId = state.ids.next("civilization");
-  const settlementId = state.ids.next("settlement");
-  const civName = uniqueName(`${state.rng.pick(CIVILIZATION_PREFIXES)} ${state.rng.pick(CIVILIZATION_SUFFIXES)}`, state.civilizations.map((civ) => civ.name));
-  const settlementName = uniqueName(`${state.rng.pick(SETTLEMENT_PREFIXES)}${state.rng.pick(SETTLEMENT_SUFFIXES)}`, state.settlements.map((settlement) => settlement.name));
-  const trait = state.rng.pick(CIVILIZATION_TRAITS);
-  const campfire = createBuildingAt(state, "campfire", best.x - 1, best.y - 1, true);
-  const storage = createBuildingAt(state, "storage", best.x + 2, best.y - 1, true);
-  campfire.civilizationId = civId;
-  campfire.settlementId = settlementId;
-  storage.civilizationId = civId;
-  storage.settlementId = settlementId;
-  const residentIds: string[] = [];
-  for (let index = 0; index < 4; index += 1) {
-    const villagerIndex = state.villagers.length;
-    const villager = createVillager(state.ids.next("villager"), villagerName(villagerIndex), best.x + 0.5, best.y + index * 0.35, assignJobByIndex(villagerIndex), state.rng.int(18, 44));
-    villager.civilizationId = civId;
-    villager.settlementId = settlementId;
-    state.villagers.push(villager);
-    residentIds.push(villager.id);
-  }
-  const settlement: Settlement = {
-    id: settlementId,
-    civilizationId: civId,
-    name: settlementName,
-    centerX: best.x,
-    centerY: best.y,
-    foundedYear: worldYear(state),
-    tier: "camp",
-    population: 4,
-    abstractPopulation: 0,
-    housingCapacity: 0,
-    foodProduction: 0,
-    woodProduction: 0,
-    stoneProduction: 0,
-    metalProduction: 0,
-    scienceProduction: 0,
-    wealthProduction: 0,
-    happiness: 66,
-    stability: 70,
-    defense: 0,
-    foodSecurity: 44,
-    buildingIds: [campfire.id, storage.id],
-    residentIds,
-    connectedSettlementIds: [],
-    localPriorities: ["housing", "food", "wood"],
-    stockpile: { food: 24, wood: 12, stone: 0, metal: 0, tools: 0, wealth: 0, research: 0 },
-    nextProject: "een veilig kamp"
-  };
-  const civilization: Civilization = {
-    id: civId,
-    name: civName,
-    colorIndex: state.rng.int(0, 7),
-    foundedYear: worldYear(state),
-    government: "tribe",
-    traits: [trait],
-    capitalSettlementId: settlementId,
-    settlementIds: [settlementId],
-    population: 4,
-    militaryStrength: 0,
-    economicStrength: 0,
-    technologicalStrength: 0,
-    treasury: 0,
-    storedResearch: 0,
-    stability: 70,
-    warSupport: trait === "militaristic" ? 45 : 22,
-    prosperity: 0,
-    foodSecurity: 44,
-    knownCivilizationIds: [],
-    activeWarIds: [],
-    activeTreatyIds: [],
-    unlockedTechnologyIds: ["fire", "gathering", "shelter"],
-    currentResearchId: "agriculture",
-    strategicGoals: ["secureFood", "buildHousing"]
-  };
-  state.settlements.push(settlement);
-  state.civilizations.push(civilization);
-  forceTerritoryRefresh(state);
-  addHistoricalEvent(state, "civilizationFounded", `${civilization.name} ontstonden rond ${settlement.name}.`, {
-    civilizationId: civId,
-    settlementId,
-    x: settlement.centerX,
-    y: settlement.centerY
-  });
+  foundIndependentCivilizationAt(state, best.x, best.y);
 }
 
 function createRelation(a: Civilization, b: Civilization): DiplomaticRelation {
@@ -336,11 +251,4 @@ function normalizeCivilizationNumbers(state: GameState): void {
     civilization.foodSecurity = safeNumber(civilization.foodSecurity);
     civilization.warSupport = safeNumber(civilization.warSupport);
   }
-}
-
-function uniqueName(base: string, existing: string[]): string {
-  if (!existing.includes(base)) return base;
-  let suffix = 2;
-  while (existing.includes(`${base} ${suffix}`)) suffix += 1;
-  return `${base} ${suffix}`;
 }

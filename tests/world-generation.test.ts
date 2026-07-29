@@ -38,4 +38,19 @@ describe("WorldGenerator", () => {
     expect(small.tiles.length).not.toBe(large.tiles.length);
     expect(large.seed).toBe("same-seed");
   });
+
+  it("varies geography between continents, island chains and archipelagos", () => {
+    const worlds = Array.from({ length: 24 }, (_, index) => generateWorld(`World-geography-${index}`, 128));
+    const styles = new Set(worlds.map((world) => world.generationStyle));
+    expect(styles.size).toBeGreaterThanOrEqual(3);
+    expect(styles.has("archipelago")).toBe(true);
+    expect(styles.has("islandChain")).toBe(true);
+
+    for (const world of worlds.filter(
+      (candidate) => candidate.generationStyle === "archipelago" || candidate.generationStyle === "islandChain"
+    )) {
+      const validation = validateWorld(world);
+      expect(validation.majorLandComponents).toBeGreaterThanOrEqual(world.generationStyle === "archipelago" ? 3 : 2);
+    }
+  }, 15_000);
 });

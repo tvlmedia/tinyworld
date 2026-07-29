@@ -6,6 +6,7 @@ import { extinguishArea, igniteTile } from "../simulation/FireSystem";
 import { getTile } from "../world/World";
 import { isWalkableTile } from "../world/Tile";
 import { assignJobByIndex } from "../ai/Jobs";
+import { foundIndependentCivilizationAt } from "../simulation/CivilizationFoundationSystem";
 
 export interface ToolDefinition {
   id: string;
@@ -20,7 +21,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   { id: "plantTree", label: "Boom", icon: "&#127795;", cooldown: 1.8, description: "Plant een jonge boom." },
   { id: "rain", label: "Regen", icon: "&#9730;", cooldown: 8, description: "Roep een regenbui op." },
   { id: "food", label: "Voedsel", icon: "&#9679;", cooldown: 1.4, description: "Plaats wilde bessen." },
-  { id: "villager", label: "Bewoner", icon: "&#9786;", cooldown: 10, description: "Laat een nieuwe kolonist verschijnen." },
+  { id: "villager", label: "Inwoner", icon: "&#9786;", cooldown: 10, description: "Laat een nieuwe kolonist verschijnen." },
+  { id: "civilization", label: "Nieuwe civ", icon: "&#9873;", cooldown: 4, description: "Sticht op ruime grond een onafhankelijke beschaving." },
   { id: "fire", label: "Vuur", icon: "&#9650;", cooldown: 4, description: "Start een beheersbare brand." },
   { id: "extinguish", label: "Blus", icon: "&#126;", cooldown: 2.5, description: "Blus vuur in een klein gebied." },
   { id: "lightning", label: "Bliksem", icon: "&#9889;", cooldown: 9, description: "Laat bliksem inslaan." },
@@ -70,6 +72,17 @@ export function useToolAt(state: GameState, toolId: string, x: number, y: number
         triggerCooldown(state, toolId);
       }
       return true;
+    case "civilization": {
+      const result = foundIndependentCivilizationAt(state, x, y);
+      if (result.founded && result.civilization && result.settlement) {
+        addEvent(state, `${result.civilization.name} stichtten ${result.settlement.name}.`);
+        triggerCooldown(state, toolId);
+        state.activeTool = "inspect";
+      } else {
+        addEvent(state, result.reason ?? "Op deze plek kan geen nieuwe beschaving ontstaan.");
+      }
+      return true;
+    }
     case "fire":
       if (igniteTile(state, x, y, 0.9)) {
         addEvent(state, "Een klein vuur begon te branden.");

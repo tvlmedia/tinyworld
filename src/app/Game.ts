@@ -19,8 +19,7 @@ export class Game {
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly uiRoot: HTMLElement) {
     const settings = this.saves.loadSettings();
-    const autosave = this.saves.loadAutosave();
-    this.state = autosave ? this.saves.restoreState(autosave) : createNewGameState(defaultSeed(), DEFAULT_WORLD_SIZE, settings);
+    this.state = createNewGameState(randomWorldSeed(), DEFAULT_WORLD_SIZE, settings);
     this.renderer = new Renderer(canvas);
     this.renderer.resize();
     this.renderer.camera.fitToWorld(this.state.world);
@@ -64,7 +63,7 @@ export class Game {
   private createUi(): UIManager {
     return new UIManager(this.uiRoot, this.state, this.renderer, this.saves, {
       newWorld: (seed, size) => this.replaceState(createNewGameState(seed, size, this.state.settings)),
-      randomWorld: () => this.replaceState(createNewGameState(randomSeed(), this.state.world.width, this.state.settings)),
+      randomWorld: () => this.replaceState(createNewGameState(randomWorldSeed(), this.state.world.width, this.state.settings)),
       setSpeed: (speed) => {
         this.state.time.speed = speed;
         this.state.time.paused = false;
@@ -120,13 +119,8 @@ export class Game {
   };
 }
 
-function defaultSeed(): string {
-  const date = new Date();
-  return `Tiny-${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
-
-function randomSeed(): string {
-  const rng = new SeededRandom(`${Date.now()}-${Math.random()}`);
+export function randomWorldSeed(now = Date.now(), entropy = Math.random()): string {
+  const rng = new SeededRandom(`${now}-${entropy}`);
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let seed = "World-";
   for (let index = 0; index < 6; index += 1) seed += alphabet[Math.floor(rng.next() * alphabet.length)];

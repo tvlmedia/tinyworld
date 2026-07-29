@@ -19,7 +19,7 @@ import { ResourceStore } from "../entities/Resources";
 import { Villager } from "../entities/Villager";
 import { GameEvent } from "../simulation/EventSystem";
 import { TILE_TYPES, Tile, TileType } from "../world/Tile";
-import { World } from "../world/World";
+import { World, WorldGenerationStyle } from "../world/World";
 
 export interface SerializedTile {
   t: number;
@@ -34,6 +34,7 @@ export interface SerializedTile {
 export interface SerializedWorld {
   seed: string;
   name: string;
+  generationStyle?: WorldGenerationStyle;
   width: number;
   height: number;
   spawn: { x: number; y: number };
@@ -105,6 +106,7 @@ export function serializeWorld(world: World): SerializedWorld {
   return {
     seed: world.seed,
     name: world.name,
+    generationStyle: world.generationStyle,
     width: world.width,
     height: world.height,
     spawn: world.spawn,
@@ -140,6 +142,7 @@ export function deserializeWorld(serialized: SerializedWorld): World {
   return {
     seed: serialized.seed,
     name: serialized.name,
+    generationStyle: serialized.generationStyle ?? "continent",
     width: serialized.width,
     height: serialized.height,
     spawn: serialized.spawn,

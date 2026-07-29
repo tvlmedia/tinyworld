@@ -15,6 +15,7 @@ export function hudSummary(state: GameState): string {
     <div class="topbar__title">
       <strong>${state.world.name}</strong>
       <span>Seed: ${state.world.seed}</span>
+      <span>Kaart: ${worldStyleLabel(state.world.generationStyle)}</span>
       <span>Fase: ${state.civilization.title}</span>
     </div>
     <div class="topbar__stats">
@@ -42,6 +43,13 @@ export function hudSummary(state: GameState): string {
       <span>Doel <strong>${state.civilization.nextGoal}</strong></span>
     </div>
   `;
+}
+
+function worldStyleLabel(style: GameState["world"]["generationStyle"]): string {
+  if (style === "archipelago") return "Archipel";
+  if (style === "islandChain") return "Eilandketen";
+  if (style === "inlandSea") return "Binnenzee";
+  return "Continent";
 }
 
 function totalInhabitants(state: GameState): number {

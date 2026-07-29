@@ -2,7 +2,7 @@ import { Point, clamp, hash2D, neighbors4, tileKey } from "../utils/MathUtils";
 import { fbmNoise2D } from "./Noise";
 import { SeededRandom } from "./SeededRandom";
 import { isLand, isWater, Tile, TileType } from "./Tile";
-import { getTile, inBounds, World } from "./World";
+import { getTile, inBounds, World, WorldGenerationStyle } from "./World";
 
 const NAME_PREFIXES = ["Elder", "Green", "Oak", "Silver", "Sun", "Mist", "Bright", "Fern"];
 const NAME_SUFFIXES = ["vale", "mere", "holm", "reach", "haven", "wood", "isle", "brook"];
@@ -14,17 +14,20 @@ export interface WorldValidation {
   forestTiles: number;
   foodTiles: number;
   largestLandArea: number;
+  majorLandComponents: number;
 }
 
 export function generateWorld(seed: string, size = 128): World {
+  const generationStyle = chooseGenerationStyle(seed, size);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const attemptSeed = attempt === 0 ? `${seed}:${size}` : `${seed}:${size}:retry-${attempt}`;
-    const world = buildWorld(attemptSeed, size, 0, seed);
+    const world = buildWorld(attemptSeed, size, 0, seed, generationStyle);
     const validation = validateWorld(world);
     if (validation.playable) return world;
   }
 
-  const fallback = buildWorld(`${seed}:${size}:wide-island`, size, 0.08, seed);
+  const fallbackStyle = generationStyle === "archipelago" || generationStyle === "islandChain" ? generationStyle : "continent";
+  const fallback = buildWorld(`${seed}:${size}:wide-island`, size, 0.05, seed, fallbackStyle);
   enrichSpawnArea(fallback);
   return fallback;
 }
@@ -44,25 +47,45 @@ export function validateWorld(world: World): WorldValidation {
     }
   }
 
-  const largestLandArea = findLargestLandArea(world);
+  const landAreas = findLandAreas(world);
+  const largestLandArea = landAreas[0] ?? 0;
   const total = world.width * world.height;
+  const majorLandComponents = landAreas.filter((area) => area >= total * 0.008).length;
+  const fragmented = world.generationStyle === "archipelago" || world.generationStyle === "islandChain";
+  const componentRequirement = world.generationStyle === "archipelago" ? 3 : world.generationStyle === "islandChain" ? 2 : 1;
   const playable =
-    landTiles / total > 0.22 &&
+    landTiles / total > (fragmented ? 0.18 : 0.22) &&
     grassTiles > total * 0.08 &&
     forestTiles > total * 0.035 &&
     foodTiles > 24 &&
-    largestLandArea > landTiles * (world.width >= 256 ? 0.32 : 0.5) &&
+    largestLandArea > landTiles * (fragmented ? 0.1 : world.width >= 256 ? 0.32 : 0.5) &&
+    majorLandComponents >= componentRequirement &&
     world.spawn.x > 0 &&
     world.spawn.y > 0;
 
-  return { playable, landTiles, grassTiles, forestTiles, foodTiles, largestLandArea };
+  return { playable, landTiles, grassTiles, forestTiles, foodTiles, largestLandArea, majorLandComponents };
 }
 
-function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = seed): World {
+interface IslandBlob {
+  x: number;
+  y: number;
+  radiusX: number;
+  radiusY: number;
+  strength: number;
+}
+
+function buildWorld(
+  seed: string,
+  size: number,
+  heightBias = 0,
+  displaySeed = seed,
+  generationStyle: WorldGenerationStyle = "continent"
+): World {
   const seedHash = SeededRandom.hashSeed(seed);
   const rng = new SeededRandom(seed);
   const tiles: Tile[] = [];
   const scale = worldScale(size);
+  const islandBlobs = createIslandBlobs(generationStyle, rng);
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
@@ -80,14 +103,15 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
       const moisture = clamp(fbmNoise2D(u * scale.moisture - 40, v * scale.moisture + 15, seedHash + 17, 4), 0, 1);
       const temperature = clamp(1 - v + fbmNoise2D(u * 3.2, v * 3.2, seedHash + 73, 2) * 0.18, 0, 1);
       const lakeCut = lakeField > 0.68 && moisture > 0.54 && elevationBand(continent, region) < 0.68 ? 0.13 : 0;
+      const geography = geographyElevation(generationStyle, nx, ny, radial, falloff, islandBlobs);
       const elevation = clamp(
-        continent * 0.62 +
-          region * 0.24 +
+        continent * geography.continentWeight +
+          region * geography.regionWeight +
           detail * 0.08 +
-          mountainField * 0.13 +
-          0.26 +
+          mountainField * geography.mountainWeight +
+          geography.base +
           heightBias -
-          falloff * (size >= 512 ? 0.56 : 0.64) -
+          geography.waterCut * (size >= 512 ? 0.92 : 1) -
           lakeCut,
         0,
         1
@@ -112,6 +136,7 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
   const world: World = {
     seed: displaySeed,
     name: generateWorldName(rng),
+    generationStyle,
     width: size,
     height: size,
     tiles,
@@ -119,13 +144,112 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
     version: 0
   };
 
-  carveSeaStraits(world);
+  if (generationStyle === "continent" || generationStyle === "inlandSea") carveSeaStraits(world);
   addMountainRanges(world, seedHash);
   carveRivers(world, seedHash);
   addBeaches(world);
   world.spawn = findSpawn(world);
   enrichSpawnArea(world);
   return world;
+}
+
+function chooseGenerationStyle(seed: string, size: number): WorldGenerationStyle {
+  const normalized = seed.toLowerCase();
+  if (normalized.includes("archipelago") || normalized.includes("archipel")) return "archipelago";
+  if (normalized.includes("island") || normalized.includes("eiland")) return "islandChain";
+  if (normalized.includes("inland-sea") || normalized.includes("binnenzee")) return "inlandSea";
+  if (!seed.startsWith("World-")) return "continent";
+  const rng = new SeededRandom(`${seed}:${size}:geography-style`);
+  const roll = rng.next();
+  if (roll < 0.32) return "continent";
+  if (roll < 0.64) return "archipelago";
+  if (roll < 0.84) return "islandChain";
+  return "inlandSea";
+}
+
+function createIslandBlobs(style: WorldGenerationStyle, rng: SeededRandom): IslandBlob[] {
+  if (style !== "archipelago" && style !== "islandChain") return [];
+  const blobs: IslandBlob[] = [];
+  if (style === "archipelago") {
+    const count = rng.int(8, 12);
+    for (let index = 0; index < count; index += 1) {
+      blobs.push({
+        x: rng.float(-0.72, 0.72),
+        y: rng.float(-0.72, 0.72),
+        radiusX: rng.float(0.2, 0.38),
+        radiusY: rng.float(0.18, 0.34),
+        strength: rng.float(0.88, 1.08)
+      });
+    }
+    return blobs;
+  }
+
+  const vertical = rng.chance(0.5);
+  const phase = rng.float(0, Math.PI * 2);
+  const count = rng.int(7, 10);
+  for (let index = 0; index < count; index += 1) {
+    const progress = count === 1 ? 0.5 : index / (count - 1);
+    const along = -0.78 + progress * 1.56;
+    const cross = Math.sin(progress * Math.PI * 2 + phase) * 0.22 + rng.float(-0.08, 0.08);
+    blobs.push({
+      x: vertical ? cross : along,
+      y: vertical ? along : cross,
+      radiusX: rng.float(0.2, 0.31),
+      radiusY: rng.float(0.18, 0.29),
+      strength: rng.float(0.9, 1.08)
+    });
+  }
+  for (let index = 0; index < 2; index += 1) {
+    blobs.push({
+      x: rng.float(-0.75, 0.75),
+      y: rng.float(-0.75, 0.75),
+      radiusX: rng.float(0.14, 0.22),
+      radiusY: rng.float(0.14, 0.22),
+      strength: rng.float(0.82, 0.96)
+    });
+  }
+  return blobs;
+}
+
+function geographyElevation(
+  style: WorldGenerationStyle,
+  nx: number,
+  ny: number,
+  radial: number,
+  falloff: number,
+  blobs: IslandBlob[]
+): { continentWeight: number; regionWeight: number; mountainWeight: number; base: number; waterCut: number } {
+  if (style === "archipelago" || style === "islandChain") {
+    let islandMask = 0;
+    for (const blob of blobs) {
+      const distance = Math.hypot((nx - blob.x) / blob.radiusX, (ny - blob.y) / blob.radiusY);
+      islandMask = Math.max(islandMask, Math.max(0, 1 - distance) * blob.strength);
+    }
+    return {
+      continentWeight: 0.34,
+      regionWeight: 0.17,
+      mountainWeight: 0.1,
+      base: islandMask * 0.66 - 0.12,
+      waterCut: Math.max(0, radial - 0.92) * 0.35
+    };
+  }
+  if (style === "inlandSea") {
+    const lake = Math.max(0, 1 - Math.hypot(nx * 1.12, ny * 0.88) / 0.46);
+    return {
+      continentWeight: 0.62,
+      regionWeight: 0.24,
+      mountainWeight: 0.13,
+      base: 0.27,
+      waterCut: falloff * 0.58 + lake * 0.52
+    };
+  }
+  return {
+    continentWeight: 0.62,
+    regionWeight: 0.24,
+    mountainWeight: 0.13,
+    base: 0.26,
+    waterCut: falloff * 0.64
+  };
 }
 
 function carveSeaStraits(world: World): void {
@@ -327,9 +451,9 @@ function enrichSpawnArea(world: World): void {
   }
 }
 
-function findLargestLandArea(world: World): number {
+function findLandAreas(world: World): number[] {
   const visited = new Set<string>();
-  let largest = 0;
+  const areas: number[] = [];
 
   for (const tile of world.tiles) {
     if (visited.has(tileKey(tile.x, tile.y)) || !isLand(tile.type) || tile.type === "mountain") continue;
@@ -351,10 +475,10 @@ function findLargestLandArea(world: World): number {
       }
     }
 
-    largest = Math.max(largest, area);
+    areas.push(area);
   }
 
-  return largest;
+  return areas.sort((a, b) => b - a);
 }
 
 function generateWorldName(rng: SeededRandom): string {

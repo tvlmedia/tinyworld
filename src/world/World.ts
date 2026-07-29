@@ -1,9 +1,12 @@
 import { Point } from "../utils/MathUtils";
 import { isWalkableTile, Tile } from "./Tile";
 
+export type WorldGenerationStyle = "continent" | "archipelago" | "islandChain" | "inlandSea";
+
 export interface World {
   seed: string;
   name: string;
+  generationStyle?: WorldGenerationStyle;
   width: number;
   height: number;
   tiles: Tile[];
