@@ -198,6 +198,9 @@ function arrive(villager: Villager, state: GameState): void {
       villager.actionTimer = 0.8;
       break;
     case "sleep":
+      villager.actionTimer = 5;
+      villager.energy = Math.min(100, villager.energy + 34);
+      villager.happiness = clampStat(villager.happiness + 1.5);
       break;
     default:
       setVillagerState(villager, "idle");
@@ -291,12 +294,12 @@ function goSleep(villager: Villager, state: GameState): void {
     setVillagerState(villager, "idle");
     return;
   }
-  walkToBuilding(villager, state, target.id, "eat");
-  setVillagerState(villager, "sleep");
-  villager.path = state.pathfinder.findPath(state.world, villager, nearestWalkableAdjacent(state, target, villager) ?? villager).path.slice(1);
-  villager.actionTimer = 5;
-  villager.energy = Math.min(100, villager.energy + 34);
-  villager.happiness = clampStat(villager.happiness + 1.5);
+  const restTile = nearestWalkableAdjacent(state, target, villager);
+  if (!restTile) {
+    setVillagerState(villager, "idle");
+    return;
+  }
+  setPath(villager, state, restTile, "sleep");
 }
 
 function wander(villager: Villager, state: GameState): void {
