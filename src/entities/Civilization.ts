@@ -51,6 +51,8 @@ export type HistoricalEventType =
   | "warStarted"
   | "battle"
   | "settlementCaptured"
+  | "settlementAbandoned"
+  | "ruinsClaimed"
   | "peaceSigned"
   | "civilizationCollapsed"
   | "rebellion"

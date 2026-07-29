@@ -6,6 +6,7 @@ import { ResourceStore } from "../entities/Resources";
 import { clamp } from "../utils/MathUtils";
 import { getTile, tileIndex } from "../world/World";
 import { addEvent } from "./EventSystem";
+import { claimAbandonedBuildings, removeEmptySettlements } from "./SettlementLifecycleSystem";
 import { economyMultiplier } from "./TechnologySystem";
 
 const CIVILIZATION_TITLES = ["Kamp", "Gehucht", "Dorp", "Stad", "Hoofdstad", "Koninkrijk", "Regionale macht", "Groot rijk"] as const;
@@ -14,8 +15,10 @@ export function updateCivilization(state: GameState, dt: number): void {
   bootstrapCivilizationState(state);
   syncSettlementAssignments(state);
   syncSettlementAggregates(state);
+  removeEmptySettlements(state);
   syncCivilizationAggregates(state);
   updateTerritory(state, dt);
+  claimAbandonedBuildings(state);
   updateLegacyCivilizationSummary(state, dt);
 }
 
@@ -78,7 +81,10 @@ function syncSettlementAssignments(state: GameState): void {
   if (!fallbackSettlement) return;
   for (const building of state.buildings) {
     if (building.settlementId && state.settlements.some((settlement) => settlement.id === building.settlementId)) continue;
-    const settlement = nearestSettlement(state, building.x + building.width / 2, building.y + building.height / 2) ?? fallbackSettlement;
+    if (!building.civilizationId) continue;
+    const settlement =
+      nearestSettlementForCivilization(state, building.x + building.width / 2, building.y + building.height / 2, building.civilizationId) ??
+      fallbackSettlement;
     building.settlementId = settlement.id;
     building.civilizationId = settlement.civilizationId;
   }
@@ -88,6 +94,12 @@ function syncSettlementAssignments(state: GameState): void {
     villager.settlementId = settlement.id;
     villager.civilizationId = settlement.civilizationId;
   }
+}
+
+function nearestSettlementForCivilization(state: GameState, x: number, y: number, civilizationId: string): Settlement | undefined {
+  return state.settlements
+    .filter((settlement) => settlement.civilizationId === civilizationId)
+    .sort((a, b) => Math.hypot(a.centerX - x, a.centerY - y) - Math.hypot(b.centerX - x, b.centerY - y))[0];
 }
 
 function syncSettlementAggregates(state: GameState): void {

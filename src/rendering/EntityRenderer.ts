@@ -51,6 +51,17 @@ export class EntityRenderer {
       this.drawCompleteBuilding(ctx, state, building, screen.x, screen.y, width, height, time);
     }
 
+    if (!building.civilizationId && building.status === "complete") {
+      ctx.fillStyle = "rgba(49, 53, 48, 0.34)";
+      ctx.fillRect(screen.x, screen.y, width, height);
+      ctx.strokeStyle = "rgba(214, 207, 176, 0.48)";
+      ctx.lineWidth = Math.max(1, camera.zoom);
+      ctx.beginPath();
+      ctx.moveTo(screen.x + width * 0.22, screen.y + height * 0.22);
+      ctx.lineTo(screen.x + width * 0.78, screen.y + height * 0.78);
+      ctx.stroke();
+    }
+
     if (selected) {
       ctx.strokeStyle = "#fff3a6";
       ctx.lineWidth = Math.max(2, camera.zoom * 1.2);

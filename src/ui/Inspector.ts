@@ -33,16 +33,17 @@ export function inspectorHtml(state: GameState): string {
     if (!building) return emptyInspector();
     const definition = BUILDING_DEFINITIONS[building.type];
     const occupants = building.type === "house" ? occupantsForHouse(state, building.id).length : 0;
+    const status = building.civilizationId ? building.status : "verlaten";
     return `
       <h2>${definition.label}</h2>
       <dl>
-        <dt>Status</dt><dd>${building.status}</dd>
+        <dt>Status</dt><dd>${status}</dd>
         <dt>Gezondheid</dt><dd>${Math.round(building.health)} / ${building.maxHealth}</dd>
         <dt>Voortgang</dt><dd>${Math.round((building.progress / building.workRequired) * 100)}%</dd>
         <dt>Materiaal</dt><dd>${allMaterialsDelivered(building) ? "klaar" : costLabel(building.type)}</dd>
         <dt>Bedden</dt><dd>${building.capacity > 0 ? `${occupants} / ${building.capacity}` : "-"}</dd>
         <dt>Opslagruimte</dt><dd>${building.storageCapacity}</dd>
-        <dt>Productie</dt><dd>${buildingProductionLabel(building.type)}</dd>
+        <dt>Productie</dt><dd>${building.civilizationId ? buildingProductionLabel(building.type) : "inactief"}</dd>
       </dl>
     `;
   }

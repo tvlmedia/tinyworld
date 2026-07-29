@@ -48,7 +48,7 @@ export class Simulation {
 
 function updateProduction(state: GameState, dt: number): void {
   for (const building of state.buildings) {
-    if (building.status !== "complete") continue;
+    if (building.status !== "complete" || !building.civilizationId) continue;
     building.productionTimer += dt;
     if (building.type === "mine" && building.productionTimer >= 36) {
       building.productionTimer = 0;

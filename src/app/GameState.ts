@@ -280,7 +280,7 @@ export function createEmptyTerritory(world: World): TerritoryState {
 }
 
 export function bootstrapCivilizationState(state: GameState): void {
-  if (state.civilizations.length > 0 && state.settlements.length > 0) return;
+  if (state.civilizations.length > 0) return;
 
   const year = worldYear(state);
   const settlementId = state.ids.next("settlement");
@@ -408,9 +408,15 @@ export function releaseBuildingTiles(world: World, building: Building): void {
 }
 
 export function refreshBuildingEffects(state: GameState): void {
-  state.buildingEffects.woodBonus = state.buildings.some((building) => building.type === "woodcutter" && building.status === "complete");
-  state.buildingEffects.workshopBonus = state.buildings.some((building) => building.type === "workshop" && building.status === "complete");
-  state.buildingEffects.mineBonus = state.buildings.some((building) => building.type === "mine" && building.status === "complete");
+  state.buildingEffects.woodBonus = state.buildings.some(
+    (building) => building.type === "woodcutter" && building.status === "complete" && !!building.civilizationId
+  );
+  state.buildingEffects.workshopBonus = state.buildings.some(
+    (building) => building.type === "workshop" && building.status === "complete" && !!building.civilizationId
+  );
+  state.buildingEffects.mineBonus = state.buildings.some(
+    (building) => building.type === "mine" && building.status === "complete" && !!building.civilizationId
+  );
 }
 
 function findNearbySpawn(world: World, spawn: Point, index: number): Point {
