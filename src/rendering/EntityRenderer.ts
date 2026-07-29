@@ -1,5 +1,6 @@
 import { GameState } from "../app/GameState";
 import { TILE_SIZE } from "../app/Config";
+import { CIVILIZATION_COLORS } from "../config/civilizationConfig";
 import { BUILDING_DEFINITIONS, Building } from "../entities/Building";
 import { Villager } from "../entities/Villager";
 import { daylightAmount } from "../simulation/TimeSystem";
@@ -12,6 +13,11 @@ export class EntityRenderer {
     for (const fire of state.fires) this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity, time);
     const orderedVillagers = [...state.villagers].sort((a, b) => a.y - b.y);
     for (const villager of orderedVillagers) this.drawVillager(ctx, state, camera, villager, time);
+    if (state.mapMode === "trade" || state.mapMode === "diplomacy") this.drawTradeRoutes(ctx, state, camera);
+    if (state.mapMode === "war" || state.mapMode === "diplomacy") this.drawWarLines(ctx, state, camera);
+    for (const army of state.armies) this.drawArmy(ctx, state, camera, army.id, army.x, army.y, army.civilizationId, army.soldierIds.length, army.morale);
+    for (const group of state.colonistGroups) this.drawTravelGroup(ctx, state, camera, group.x, group.y, group.civilizationId, group.settlers, "kol");
+    for (const group of state.migrationGroups) this.drawTravelGroup(ctx, state, camera, group.x, group.y, undefined, group.migrants, "mig");
   }
 
   private drawBuilding(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, building: Building, time: number): void {
@@ -42,6 +48,10 @@ export class EntityRenderer {
       ctx.strokeStyle = "#fff3a6";
       ctx.lineWidth = Math.max(2, camera.zoom * 1.2);
       ctx.strokeRect(screen.x - 2, screen.y - 2, width + 4, height + 4);
+    }
+
+    if (building.status === "complete" && building.civilizationId && (building.type === "campfire" || building.type === "storage" || building.type === "market" || building.type === "watchtower")) {
+      this.drawCivilizationFlag(ctx, state, building, screen.x, screen.y, width, height);
     }
   }
 
@@ -107,17 +117,21 @@ export class EntityRenderer {
     }
 
     const body =
-      building.type === "storage"
-        ? "#b07b52"
-        : building.type === "workshop"
-          ? "#8a6b91"
-          : building.type === "mine"
-            ? "#766456"
-          : building.type === "market"
-            ? "#c98945"
-            : building.type === "school"
-              ? "#6d8eb4"
-              : "#b86f58";
+      building.visualEra === "industry"
+        ? "#7d8584"
+        : building.visualEra === "stone"
+          ? "#9aa0a0"
+          : building.type === "storage"
+            ? "#b07b52"
+            : building.type === "workshop"
+              ? "#8a6b91"
+              : building.type === "mine"
+                ? "#766456"
+                : building.type === "market"
+                  ? "#c98945"
+                  : building.type === "school"
+                    ? "#6d8eb4"
+                    : "#b86f58";
     const roof = building.type === "watchtower" ? "#6d573c" : building.type === "mine" ? "#49382f" : building.type === "market" ? "#b4473e" : "#7c4f3f";
     ctx.fillStyle = body;
     ctx.fillRect(x + width * 0.12, y + height * 0.35, width * 0.76, height * 0.52);
@@ -185,6 +199,27 @@ export class EntityRenderer {
     for (let i = 0; i < piles; i += 1) {
       ctx.fillRect(x + width * (0.18 + i * 0.1), y + height * 0.74, width * 0.07, height * 0.08);
     }
+  }
+
+  private drawCivilizationFlag(ctx: CanvasRenderingContext2D, state: GameState, building: Building, x: number, y: number, width: number, height: number): void {
+    const civilization = state.civilizations.find((item) => item.id === building.civilizationId);
+    if (!civilization) return;
+    const color = CIVILIZATION_COLORS[civilization.colorIndex % CIVILIZATION_COLORS.length];
+    const poleX = x + width * 0.72;
+    const poleTop = y + height * 0.05;
+    ctx.strokeStyle = "#3c3028";
+    ctx.lineWidth = Math.max(1, width * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(poleX, poleTop);
+    ctx.lineTo(poleX, y + height * 0.42);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(poleX, poleTop);
+    ctx.lineTo(poleX + width * 0.18, poleTop + height * 0.06);
+    ctx.lineTo(poleX, poleTop + height * 0.16);
+    ctx.closePath();
+    ctx.fill();
   }
 
   private drawVillager(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, villager: Villager, time: number): void {
@@ -255,6 +290,140 @@ export class EntityRenderer {
     ctx.beginPath();
     ctx.arc(screen.x + size * 0.58, screen.y + size * 0.1 - (time * 0.015) % 12, size * 0.16, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  private drawTravelGroup(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    camera: Camera,
+    worldX: number,
+    worldY: number,
+    civilizationId: string | undefined,
+    count: number,
+    label: string
+  ): void {
+    const screen = camera.worldToScreen(worldX, worldY);
+    const size = TILE_SIZE * camera.zoom;
+    const civilization = civilizationId ? state.civilizations.find((item) => item.id === civilizationId) : undefined;
+    const color = civilization ? CIVILIZATION_COLORS[civilization.colorIndex % CIVILIZATION_COLORS.length] : "#f2c14e";
+    ctx.fillStyle = "rgba(36, 29, 22, 0.55)";
+    ctx.fillRect(screen.x - size * 0.42, screen.y + size * 0.18, size * 0.84, size * 0.18);
+    ctx.fillStyle = "#9c6b42";
+    ctx.fillRect(screen.x - size * 0.32, screen.y - size * 0.12, size * 0.64, size * 0.34);
+    ctx.fillStyle = color;
+    ctx.fillRect(screen.x + size * 0.16, screen.y - size * 0.5, size * 0.32, size * 0.18);
+    ctx.strokeStyle = "#3c3028";
+    ctx.beginPath();
+    ctx.moveTo(screen.x + size * 0.16, screen.y - size * 0.5);
+    ctx.lineTo(screen.x + size * 0.16, screen.y - size * 0.08);
+    ctx.stroke();
+    ctx.fillStyle = "#f0c7a1";
+    for (let i = 0; i < Math.min(4, count); i += 1) {
+      ctx.fillRect(screen.x - size * 0.36 + i * size * 0.18, screen.y - size * 0.32, size * 0.1, size * 0.16);
+    }
+    if (camera.zoom > 0.7) {
+      ctx.fillStyle = "rgba(255,255,255,0.86)";
+      ctx.font = `${Math.max(8, size * 0.14)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(label, screen.x, screen.y - size * 0.62);
+    }
+  }
+
+  private drawTradeRoutes(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
+    for (const route of state.tradeRoutes) {
+      if (!route.active) continue;
+      const from = state.settlements.find((settlement) => settlement.id === route.fromSettlementId);
+      const to = state.settlements.find((settlement) => settlement.id === route.toSettlementId);
+      if (!from || !to) continue;
+      const a = camera.worldToScreen(from.centerX, from.centerY);
+      const b = camera.worldToScreen(to.centerX, to.centerY);
+      ctx.strokeStyle = "rgba(255, 220, 108, 0.62)";
+      ctx.lineWidth = Math.max(1, TILE_SIZE * camera.zoom * 0.06);
+      ctx.setLineDash([Math.max(3, camera.zoom * 4), Math.max(3, camera.zoom * 3)]);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const t = route.progress <= 0.5 ? route.progress * 2 : (1 - route.progress) * 2;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      ctx.fillStyle = "#f2c14e";
+      ctx.fillRect(x - 4 * camera.zoom, y - 3 * camera.zoom, 8 * camera.zoom, 6 * camera.zoom);
+    }
+  }
+
+  private drawWarLines(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera): void {
+    for (const war of state.wars) {
+      if (!war.active || !war.targetSettlementId) continue;
+      const target = state.settlements.find((settlement) => settlement.id === war.targetSettlementId);
+      if (!target) continue;
+      const targetScreen = camera.worldToScreen(target.centerX, target.centerY);
+      for (const army of state.armies.filter((item) => item.warId === war.id)) {
+        const armyScreen = camera.worldToScreen(army.x, army.y);
+        ctx.strokeStyle = army.civilizationId === target.civilizationId ? "rgba(91, 181, 120, 0.55)" : "rgba(222, 74, 64, 0.62)";
+        ctx.lineWidth = Math.max(1, TILE_SIZE * camera.zoom * 0.05);
+        ctx.setLineDash([Math.max(4, camera.zoom * 5), Math.max(3, camera.zoom * 3)]);
+        ctx.beginPath();
+        ctx.moveTo(armyScreen.x, armyScreen.y);
+        ctx.lineTo(targetScreen.x, targetScreen.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
+  private drawArmy(
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    camera: Camera,
+    id: string,
+    worldX: number,
+    worldY: number,
+    civilizationId: string,
+    soldiers: number,
+    morale: number
+  ): void {
+    const screen = camera.worldToScreen(worldX, worldY);
+    const size = TILE_SIZE * camera.zoom;
+    const civilization = state.civilizations.find((item) => item.id === civilizationId);
+    const color = civilization ? CIVILIZATION_COLORS[civilization.colorIndex % CIVILIZATION_COLORS.length] : "#d44c41";
+    const selected = state.selected.kind === "tile" && Math.hypot(state.selected.x - worldX, state.selected.y - worldY) < 1.5;
+    if (selected) {
+      ctx.strokeStyle = "#fff3a6";
+      ctx.lineWidth = Math.max(2, camera.zoom * 1.2);
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, size * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(31, 23, 20, 0.42)";
+    ctx.beginPath();
+    ctx.ellipse(screen.x, screen.y + size * 0.32, size * 0.5, size * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(screen.x - size * 0.18, screen.y - size * 0.48);
+    ctx.lineTo(screen.x + size * 0.42, screen.y - size * 0.34);
+    ctx.lineTo(screen.x - size * 0.18, screen.y - size * 0.18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#2d2520";
+    ctx.lineWidth = Math.max(1, camera.zoom);
+    ctx.beginPath();
+    ctx.moveTo(screen.x - size * 0.18, screen.y - size * 0.5);
+    ctx.lineTo(screen.x - size * 0.18, screen.y + size * 0.28);
+    ctx.stroke();
+    ctx.fillStyle = "#34302c";
+    for (let i = 0; i < Math.min(5, soldiers); i += 1) {
+      ctx.fillRect(screen.x - size * 0.38 + i * size * 0.17, screen.y - size * 0.04, size * 0.1, size * 0.24);
+    }
+    if (camera.zoom > 0.5) {
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      ctx.font = `${Math.max(8, size * 0.14)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(`${soldiers} · ${Math.round(morale)}`, screen.x, screen.y - size * 0.66);
+    }
+    void id;
   }
 }
 

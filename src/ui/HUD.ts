@@ -23,6 +23,10 @@ export function hudSummary(state: GameState): string {
     </div>
     <div class="resource-strip" aria-label="Dorpsvoorraad">
       <span>Bewoners <strong>${state.villagers.length}</strong></span>
+      <span>Civs <strong>${state.civilizations.length}</strong></span>
+      <span>Nederzettingen <strong>${state.settlements.length}</strong></span>
+      <span>Oorlogen <strong>${state.wars.filter((war) => war.active).length}</strong></span>
+      <span>Routes <strong>${state.tradeRoutes.filter((route) => route.active).length}</strong></span>
       <span>Bedden <strong>${state.villagers.length - homeless}/${beds}</strong></span>
       ${homeless > 0 ? `<span>Geen huis <strong>${homeless}</strong></span>` : ""}
       <span>Voedsel <strong>${Math.floor(state.resources.food)}</strong></span>

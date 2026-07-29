@@ -1,10 +1,12 @@
 import { GameState, createBuildingAt } from "../app/GameState";
 import { BUILDING_DEFINITIONS, BuildingType } from "../entities/Building";
+import { Settlement } from "../entities/Civilization";
 import { Point, rectsOverlap } from "../utils/MathUtils";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
 import { addEvent } from "./EventSystem";
 import { isStorageNearCapacity } from "./ResourceSystem";
+import { isBuildingUnlocked } from "./TechnologySystem";
 
 export function updateSettlementPlanner(state: GameState, dt: number): void {
   state.plannerTimer -= dt;
@@ -13,42 +15,52 @@ export function updateSettlementPlanner(state: GameState, dt: number): void {
 
   if (state.buildings.some((building) => building.status !== "complete")) return;
 
-  const next = chooseNextBuilding(state);
+  const settlement = chooseSettlementForProject(state);
+  const next = chooseNextBuilding(state, settlement);
   if (!next) return;
-  const spot = findBuildingSpot(state, next);
+  const spot = findBuildingSpot(state, next, settlement ? { x: settlement.centerX, y: settlement.centerY } : undefined);
   if (!spot) return;
   const building = createBuildingAt(state, next, spot.x, spot.y);
-  addEvent(state, `Er is een bouwplaats voor ${BUILDING_DEFINITIONS[next].label.toLowerCase()} gekozen.`);
+  if (settlement) {
+    building.settlementId = settlement.id;
+    building.civilizationId = settlement.civilizationId;
+    settlement.buildingIds.push(building.id);
+  }
+  addEvent(state, `Er is bij ${settlement?.name ?? state.world.name} een bouwplaats voor ${BUILDING_DEFINITIONS[next].label.toLowerCase()} gekozen.`);
   if (next === "farm") convertFootprintToFarmland(state, building.x, building.y, building.width, building.height);
 }
 
-export function chooseNextBuilding(state: GameState): BuildingType | undefined {
-  const completed = (type: BuildingType) => state.buildings.filter((building) => building.type === type && building.status === "complete").length;
-  const planned = (type: BuildingType) => state.buildings.some((building) => building.type === type && building.status !== "complete");
+export function chooseNextBuilding(state: GameState, settlement = state.settlements[0]): BuildingType | undefined {
+  const scopedBuildings = settlement
+    ? state.buildings.filter((building) => building.settlementId === settlement.id)
+    : state.buildings;
+  const completed = (type: BuildingType) => scopedBuildings.filter((building) => building.type === type && building.status === "complete").length;
+  const planned = (type: BuildingType) => scopedBuildings.some((building) => building.type === type && building.status !== "complete");
   const bedCapacity = state.buildings
-    .filter((building) => building.status === "complete" && building.type === "house")
+    .filter((building) => building.status === "complete" && building.type === "house" && (!settlement || building.settlementId === settlement.id))
     .reduce((sum, building) => sum + building.capacity, 0);
-  const desiredFarms = Math.min(4, Math.max(1, Math.ceil(state.villagers.length / 6)));
+  const population = settlement?.population ?? state.villagers.length;
+  const desiredFarms = Math.min(8, Math.max(1, Math.ceil(population / 10)));
+  const unlocked = (type: BuildingType) => isBuildingUnlocked(state, settlement?.civilizationId, type);
 
   if (completed("mine") < 1 && !planned("mine")) return "mine";
-  if (bedCapacity < state.villagers.length + 2 && !planned("house")) return "house";
+  if (bedCapacity < population + 2 && !planned("house")) return "house";
   if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
   if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
-  if (state.villagers.length >= 6 && completed("well") < 1 && !planned("well")) return "well";
+  if (population >= 6 && completed("well") < 1 && !planned("well")) return "well";
   if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < 3 && !planned("storage")) return "storage";
-  if (state.villagers.length >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
-  if (state.villagers.length >= 8 && completed("market") < 1 && !planned("market")) return "market";
-  if (state.villagers.length >= 10 && completed("school") < 1 && !planned("school")) return "school";
-  if (state.villagers.length >= 11 && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
-  if (state.civilization.level >= 3 && completed("monument") < 1 && !planned("monument")) return "monument";
-  if (state.villagers.length >= 12 && completed("farm") < 4 && !planned("farm")) return "farm";
-  if (state.villagers.length >= 14 && completed("storage") < 4 && !planned("storage")) return "storage";
+  if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
+  if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
+  if (population >= 10 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
+  if (population >= 11 && unlocked("watchtower") && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
+  if (state.civilization.level >= 3 && unlocked("monument") && completed("monument") < 1 && !planned("monument")) return "monument";
+  if (population >= 12 && completed("farm") < 5 && !planned("farm")) return "farm";
+  if (population >= 14 && completed("storage") < 4 && !planned("storage")) return "storage";
   return undefined;
 }
 
-export function findBuildingSpot(state: GameState, type: BuildingType): Point | undefined {
+export function findBuildingSpot(state: GameState, type: BuildingType, center = state.world.spawn): Point | undefined {
   const definition = BUILDING_DEFINITIONS[type];
-  const center = state.world.spawn;
   const maxRadius = Math.min(30, Math.floor(state.world.width / 3));
   for (let radius = 5; radius < maxRadius; radius += 2) {
     const candidates: Point[] = [];
@@ -65,6 +77,23 @@ export function findBuildingSpot(state: GameState, type: BuildingType): Point | 
     }
   }
   return undefined;
+}
+
+function chooseSettlementForProject(state: GameState): Settlement | undefined {
+  if (state.settlements.length === 0) return undefined;
+  return [...state.settlements].sort((a, b) => {
+    const priorityDelta = priorityWeight(b) - priorityWeight(a);
+    if (priorityDelta !== 0) return priorityDelta;
+    return b.population - a.population;
+  })[0];
+}
+
+function priorityWeight(settlement: Settlement): number {
+  const first = settlement.localPriorities[0];
+  if (first === "housing" || first === "food") return 4;
+  if (first === "wood" || first === "stone") return 3;
+  if (first === "defense" || first === "science") return 2;
+  return 1;
 }
 
 export function isValidBuildingSpot(state: GameState, x: number, y: number, type: BuildingType): boolean {

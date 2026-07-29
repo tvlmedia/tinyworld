@@ -1,5 +1,22 @@
 import { Pathfinder } from "../ai/Pathfinding";
 import { assignJobByIndex } from "../ai/Jobs";
+import { CIVILIZATION_PREFIXES, CIVILIZATION_SUFFIXES, CIVILIZATION_TRAITS, GOVERNMENT_BY_LEVEL, SETTLEMENT_PREFIXES, SETTLEMENT_SUFFIXES } from "../config/civilizationConfig";
+import { CIVILIZATION_UPDATE_INTERVALS } from "../config/balanceConfig";
+import {
+  Army,
+  Civilization,
+  CivilizationGoal,
+  CivilizationTimers,
+  ColonistGroup,
+  DiplomaticRelation,
+  HistoricalEvent,
+  MapMode,
+  MigrationGroup,
+  Settlement,
+  TerritoryState,
+  TradeRoute,
+  War
+} from "../entities/Civilization";
 import { createBuilding, Building, BuildingType } from "../entities/Building";
 import { ResourceStore } from "../entities/Resources";
 import { createVillager, Villager, villagerName } from "../entities/Villager";
@@ -106,6 +123,19 @@ export interface GameState {
   debug: DebugState;
   buildingEffects: BuildingEffects;
   civilization: CivilizationState;
+  mapMode: MapMode;
+  selectedCivilizationId?: string;
+  settlements: Settlement[];
+  civilizations: Civilization[];
+  diplomaticRelations: DiplomaticRelation[];
+  wars: War[];
+  armies: Army[];
+  tradeRoutes: TradeRoute[];
+  colonistGroups: ColonistGroup[];
+  migrationGroups: MigrationGroup[];
+  historicEvents: HistoricalEvent[];
+  territory: TerritoryState;
+  civilizationTimers: CivilizationTimers;
 }
 
 export const DEFAULT_SETTINGS: SettingsState = {
@@ -195,8 +225,22 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
       workshopBonus: false,
       mineBonus: false
     },
-    civilization: defaultCivilizationState()
+    civilization: defaultCivilizationState(),
+    mapMode: "normal",
+    settlements: [],
+    civilizations: [],
+    diplomaticRelations: [],
+    wars: [],
+    armies: [],
+    tradeRoutes: [],
+    colonistGroups: [],
+    migrationGroups: [],
+    historicEvents: [],
+    territory: createEmptyTerritory(world),
+    civilizationTimers: defaultCivilizationTimers()
   };
+
+  bootstrapCivilizationState(state);
 
   state.events.push({
     id: ids.next("event"),
@@ -206,6 +250,136 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
   });
 
   return state;
+}
+
+export function defaultCivilizationTimers(): CivilizationTimers {
+  return {
+    settlementEconomy: CIVILIZATION_UPDATE_INTERVALS.settlementEconomy,
+    civilizationStrategy: CIVILIZATION_UPDATE_INTERVALS.civilizationStrategy,
+    diplomacy: CIVILIZATION_UPDATE_INTERVALS.diplomacy,
+    research: CIVILIZATION_UPDATE_INTERVALS.research,
+    territory: 0,
+    war: CIVILIZATION_UPDATE_INTERVALS.war,
+    trade: CIVILIZATION_UPDATE_INTERVALS.trade,
+    history: CIVILIZATION_UPDATE_INTERVALS.history
+  };
+}
+
+export function createEmptyTerritory(world: World): TerritoryState {
+  return {
+    version: 0,
+    dirty: true,
+    recalculationTimer: 0,
+    ownerByTile: Array.from({ length: world.width * world.height }, () => null)
+  };
+}
+
+export function bootstrapCivilizationState(state: GameState): void {
+  if (state.civilizations.length > 0 && state.settlements.length > 0) return;
+
+  const year = worldYear(state);
+  const settlementId = state.ids.next("settlement");
+  const civilizationId = state.ids.next("civilization");
+  const civRng = state.rng.fork(`civilization:${state.world.seed}`);
+  const settlementName = uniqueName(`${civRng.pick(SETTLEMENT_PREFIXES)}${civRng.pick(SETTLEMENT_SUFFIXES)}`, state.settlements.map((settlement) => settlement.name));
+  const civilizationName = uniqueName(`${civRng.pick(CIVILIZATION_PREFIXES)} ${civRng.pick(CIVILIZATION_SUFFIXES)}`, state.civilizations.map((civilization) => civilization.name));
+  const firstTrait = civRng.pick(CIVILIZATION_TRAITS);
+  const secondTrait = civRng.pick(CIVILIZATION_TRAITS.filter((trait) => trait !== firstTrait));
+  const traits = civRng.chance(0.6) ? [firstTrait, secondTrait] : [firstTrait];
+
+  const buildingIds = state.buildings.map((building) => building.id);
+  const residentIds = state.villagers.map((villager) => villager.id);
+  for (const building of state.buildings) {
+    building.civilizationId = civilizationId;
+    building.settlementId = settlementId;
+  }
+  for (const villager of state.villagers) {
+    villager.civilizationId = civilizationId;
+    villager.settlementId = settlementId;
+  }
+
+  const settlement: Settlement = {
+    id: settlementId,
+    civilizationId,
+    name: settlementName,
+    centerX: state.world.spawn.x,
+    centerY: state.world.spawn.y,
+    foundedYear: year,
+    tier: "camp",
+    population: state.villagers.length,
+    abstractPopulation: 0,
+    housingCapacity: 0,
+    foodProduction: 0,
+    woodProduction: 0,
+    stoneProduction: 0,
+    metalProduction: 0,
+    scienceProduction: 0,
+    wealthProduction: 0,
+    happiness: 72,
+    stability: 78,
+    defense: 0,
+    foodSecurity: 55,
+    buildingIds,
+    residentIds,
+    connectedSettlementIds: [],
+    localPriorities: ["housing", "food", "wood"],
+    stockpile: { ...state.resources, metal: 0, tools: 0, wealth: 0, research: 0 },
+    nextProject: "bouw het eerste huis"
+  };
+
+  const civilization: Civilization = {
+    id: civilizationId,
+    name: civilizationName,
+    colorIndex: civRng.int(0, 7),
+    foundedYear: year,
+    government: GOVERNMENT_BY_LEVEL[0],
+    traits,
+    capitalSettlementId: settlementId,
+    settlementIds: [settlementId],
+    population: settlement.population,
+    militaryStrength: 0,
+    economicStrength: 0,
+    technologicalStrength: 0,
+    treasury: 0,
+    storedResearch: 0,
+    stability: settlement.stability,
+    warSupport: traits.includes("militaristic") ? 42 : 24,
+    prosperity: 0,
+    foodSecurity: settlement.foodSecurity,
+    knownCivilizationIds: [],
+    activeWarIds: [],
+    activeTreatyIds: [],
+    unlockedTechnologyIds: ["fire", "gathering", "shelter"],
+    currentResearchId: "agriculture",
+    strategicGoals: ["buildHousing", "secureFood"]
+  };
+
+  state.settlements = [settlement];
+  state.civilizations = [civilization];
+  state.selectedCivilizationId = civilizationId;
+  state.territory = createEmptyTerritory(state.world);
+  state.territory.dirty = true;
+  state.historicEvents.push({
+    id: state.ids.next("history"),
+    year,
+    type: "civilizationFounded",
+    civilizationId,
+    settlementId,
+    x: settlement.centerX,
+    y: settlement.centerY,
+    text: `Jaar ${year} - De ${civilization.name} stichtten ${settlement.name}.`
+  });
+}
+
+export function worldYear(state: Pick<GameState, "time">): number {
+  return Math.max(1, state.time.day);
+}
+
+function uniqueName(base: string, existing: string[]): string {
+  if (!existing.includes(base)) return base;
+  let suffix = 2;
+  while (existing.includes(`${base} ${suffix}`)) suffix += 1;
+  return `${base} ${suffix}`;
 }
 
 export function occupyBuildingTiles(world: World, building: Building): void {

@@ -240,6 +240,15 @@ p {
   margin-bottom: 0.45rem;
 }
 
+.segmented--wrap {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.segmented .is-active {
+  border-color: var(--accent);
+  background: rgba(242, 193, 78, 0.25);
+}
+
 .button-row {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -293,6 +302,56 @@ dd {
   display: block;
   color: rgba(255, 255, 255, 0.52);
   font-size: 0.72rem;
+}
+
+.civ-list,
+.compact-list,
+.history-list {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0 0 0.55rem;
+  list-style: none;
+}
+
+.civ-pill {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+}
+
+.civ-pill span {
+  flex: 0 0 0.8rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+}
+
+.compact-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.16rem;
+}
+
+.compact-list button,
+.history-list button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fffdf4;
+  text-align: left;
+}
+
+.compact-list span,
+.history-list li {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  line-height: 1.32;
 }
 
 .save-slot {

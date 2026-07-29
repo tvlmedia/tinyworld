@@ -3,6 +3,7 @@ import { Camera } from "./Camera";
 import { EntityRenderer } from "./EntityRenderer";
 import { LightingRenderer } from "./LightingRenderer";
 import { ParticleSystem } from "./ParticleSystem";
+import { TerritoryRenderer } from "./TerritoryRenderer";
 import { TileRenderer } from "./TileRenderer";
 import { WeatherRenderer } from "./WeatherRenderer";
 
@@ -11,6 +12,7 @@ export class Renderer {
   readonly particles = new ParticleSystem();
   private readonly ctx: CanvasRenderingContext2D;
   private readonly tiles = new TileRenderer();
+  private readonly territory = new TerritoryRenderer();
   private readonly entities = new EntityRenderer();
   private readonly weather = new WeatherRenderer();
   private readonly lighting = new LightingRenderer();
@@ -42,6 +44,7 @@ export class Renderer {
     const height = this.canvas.clientHeight;
     this.ctx.imageSmoothingEnabled = false;
     this.tiles.draw(this.ctx, state, this.camera, time);
+    this.territory.draw(this.ctx, state, this.camera);
     this.entities.draw(this.ctx, state, this.camera, time);
     this.lighting.draw(this.ctx, state, width, height);
     this.weather.draw(this.ctx, state, width, height, time);

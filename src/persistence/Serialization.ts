@@ -1,5 +1,19 @@
 import { GAME_VERSION } from "../app/Config";
 import { CivilizationState, GameState, WeatherState, FireState, TimeState, SettingsState } from "../app/GameState";
+import {
+  Army,
+  Civilization,
+  CivilizationTimers,
+  ColonistGroup,
+  DiplomaticRelation,
+  HistoricalEvent,
+  MapMode,
+  MigrationGroup,
+  Settlement,
+  TerritoryState,
+  TradeRoute,
+  War
+} from "../entities/Civilization";
 import { Building } from "../entities/Building";
 import { ResourceStore } from "../entities/Resources";
 import { Villager } from "../entities/Villager";
@@ -40,6 +54,19 @@ export interface SaveGame {
   events: GameEvent[];
   settings: SettingsState;
   civilization?: CivilizationState;
+  mapMode?: MapMode;
+  selectedCivilizationId?: string;
+  settlements?: Settlement[];
+  civilizations?: Civilization[];
+  diplomaticRelations?: DiplomaticRelation[];
+  wars?: War[];
+  armies?: Army[];
+  tradeRoutes?: TradeRoute[];
+  colonistGroups?: ColonistGroup[];
+  migrationGroups?: MigrationGroup[];
+  historicEvents?: HistoricalEvent[];
+  territory?: TerritoryState;
+  civilizationTimers?: CivilizationTimers;
 }
 
 export function serializeGame(state: GameState): SaveGame {
@@ -55,7 +82,20 @@ export function serializeGame(state: GameState): SaveGame {
     fires: state.fires,
     events: state.events,
     settings: state.settings,
-    civilization: state.civilization
+    civilization: state.civilization,
+    mapMode: state.mapMode,
+    selectedCivilizationId: state.selectedCivilizationId,
+    settlements: state.settlements,
+    civilizations: state.civilizations,
+    diplomaticRelations: state.diplomaticRelations,
+    wars: state.wars,
+    armies: state.armies,
+    tradeRoutes: state.tradeRoutes,
+    colonistGroups: state.colonistGroups,
+    migrationGroups: state.migrationGroups,
+    historicEvents: state.historicEvents,
+    territory: state.territory,
+    civilizationTimers: state.civilizationTimers
   };
 }
 

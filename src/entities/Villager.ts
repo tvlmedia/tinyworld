@@ -50,6 +50,9 @@ export interface Villager {
   carrying?: Carrying;
   homeId?: string;
   workplaceId?: string;
+  civilizationId?: string;
+  settlementId?: string;
+  armyId?: string;
   path: Point[];
   actionTimer: number;
   targetTile?: Point;

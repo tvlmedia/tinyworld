@@ -3,6 +3,8 @@ import { GameState, SettingsState } from "../app/GameState";
 import { SaveManager, SaveMeta } from "../persistence/SaveManager";
 import { Renderer } from "../rendering/Renderer";
 import { debugAction, cooldownRemaining, TOOL_DEFINITIONS } from "../input/ToolManager";
+import { MapMode } from "../entities/Civilization";
+import { civilizationPanelHtml, historyPanelHtml, mapModeHtml, settlementsPanelHtml } from "./CivilizationPanel";
 import { hudSummary } from "./HUD";
 import { inspectorHtml } from "./Inspector";
 import { eventLogHtml } from "./EventLog";
@@ -41,6 +43,10 @@ export class UIManager {
   update(): void {
     this.replaceHtml("topbar", hudSummary(this.state));
     this.replaceHtml("inspector", inspectorHtml(this.state));
+    this.replaceHtml("map-modes", mapModeHtml(this.state));
+    this.replaceHtml("civilizations", civilizationPanelHtml(this.state));
+    this.replaceHtml("settlements", settlementsPanelHtml(this.state));
+    this.replaceHtml("history-panel", historyPanelHtml(this.state));
     this.replaceHtml("event-log", eventLogHtml(this.state));
     this.replaceHtml("debug-panel", this.debugHtml());
     this.updateToolButtons();
@@ -77,6 +83,10 @@ export class UIManager {
           <button type="button" data-action="pause">Pauze</button>
         </section>
         <section>
+          <h2>Kaart</h2>
+          <div id="map-modes">${mapModeHtml(this.state)}</div>
+        </section>
+        <section>
           <h2>Wereld</h2>
           <label>Seed <input id="seed-input" value="${this.state.world.seed}" /></label>
           <label>Grootte
@@ -99,6 +109,14 @@ export class UIManager {
       <aside class="panel panel--right">
         <section class="inspector" id="inspector"></section>
         <section>
+          <h2>Beschavingen</h2>
+          <div id="civilizations"></div>
+        </section>
+        <section>
+          <h2>Nederzettingen</h2>
+          <div id="settlements"></div>
+        </section>
+        <section>
           <h2>Savegames</h2>
           <div id="save-slots">${saveSlotsHtml(this.saveMetas)}</div>
         </section>
@@ -110,6 +128,7 @@ export class UIManager {
       </aside>
       <section class="event-panel">
         <h2>Gebeurtenissen</h2>
+        <div id="history-panel"></div>
         <ul id="event-log"></ul>
       </section>
       <div class="tutorial" id="tutorial" hidden></div>
@@ -149,6 +168,18 @@ export class UIManager {
         this.actions.setSpeed(Number(speed) as GameSpeed);
         return;
       }
+      const mapMode = target.dataset.mapMode as MapMode | undefined;
+      if (mapMode) {
+        this.state.mapMode = mapMode;
+        this.update();
+        return;
+      }
+      const civilizationId = target.dataset.civilizationId;
+      if (civilizationId && !target.dataset.action) {
+        this.state.selectedCivilizationId = civilizationId;
+        this.update();
+        return;
+      }
       const action = target.dataset.action;
       if (!action) return;
       this.handleAction(action, target);
@@ -182,6 +213,14 @@ export class UIManager {
     if (action === "reset-camera") this.renderer.camera.reset(this.state.world);
     if (action === "zoom-in") this.renderer.camera.zoomBy(1.3, this.state.world);
     if (action === "zoom-out") this.renderer.camera.zoomBy(1 / 1.3, this.state.world);
+    if (action === "focus-civilization") this.focusCivilization(target.dataset.civilizationId);
+    if (action === "show-territory") {
+      this.state.selectedCivilizationId = target.dataset.civilizationId;
+      this.state.mapMode = "political";
+      this.update();
+    }
+    if (action === "focus-settlement") this.focusSettlement(target.dataset.settlementId);
+    if (action === "focus-history") this.focusHistory(target.dataset.historyId);
     if (action === "close-tutorial") {
       markTutorialSeen();
       const tutorial = this.root.querySelector<HTMLElement>("#tutorial");
@@ -190,6 +229,31 @@ export class UIManager {
     if (action === "save") this.actions.save(Number(target.dataset.slot));
     if (action === "load") this.actions.load(Number(target.dataset.slot));
     if (action.startsWith("debug:")) debugAction(this.state, action.slice("debug:".length));
+  }
+
+  private focusCivilization(civilizationId?: string): void {
+    const civilization = this.state.civilizations.find((item) => item.id === civilizationId);
+    const capital = civilization ? this.state.settlements.find((settlement) => settlement.id === civilization.capitalSettlementId) : undefined;
+    if (!civilization || !capital) return;
+    this.state.selectedCivilizationId = civilization.id;
+    this.renderer.camera.centerOn({ x: capital.centerX, y: capital.centerY }, this.state.world);
+    this.update();
+  }
+
+  private focusSettlement(settlementId?: string): void {
+    const settlement = this.state.settlements.find((item) => item.id === settlementId);
+    if (!settlement) return;
+    this.state.selectedCivilizationId = settlement.civilizationId;
+    this.renderer.camera.centerOn({ x: settlement.centerX, y: settlement.centerY }, this.state.world);
+    this.update();
+  }
+
+  private focusHistory(historyId?: string): void {
+    const history = this.state.historicEvents.find((event) => event.id === historyId);
+    if (!history || history.x === undefined || history.y === undefined) return;
+    if (history.civilizationId) this.state.selectedCivilizationId = history.civilizationId;
+    this.renderer.camera.centerOn({ x: history.x, y: history.y }, this.state.world);
+    this.update();
   }
 
   private updateToolButtons(): void {

@@ -15,5 +15,8 @@ export function migrateSaveGame(save: SaveGame): SaveGame {
   if (migrated.version === 1) {
     migrated = { ...migrated, version: 2 };
   }
+  if (migrated.version === 2) {
+    migrated = { ...migrated, version: 3 };
+  }
   return migrated;
 }

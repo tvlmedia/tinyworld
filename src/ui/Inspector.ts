@@ -2,7 +2,7 @@ import { GameState } from "../app/GameState";
 import { BUILDING_DEFINITIONS, allMaterialsDelivered, costLabel } from "../entities/Building";
 import { describeState } from "../entities/Villager";
 import { occupantsForHouse } from "../simulation/HousingSystem";
-import { getTile } from "../world/World";
+import { getTile, tileIndex } from "../world/World";
 
 export function inspectorHtml(state: GameState): string {
   const selected = state.selected;
@@ -49,10 +49,13 @@ export function inspectorHtml(state: GameState): string {
   if (selected.kind === "tile") {
     const tile = getTile(state.world, selected.x, selected.y);
     if (!tile) return emptyInspector();
+    const ownerId = state.territory.ownerByTile[tileIndex(state.world, tile.x, tile.y)];
+    const owner = ownerId ? state.civilizations.find((civilization) => civilization.id === ownerId)?.name : undefined;
     return `
       <h2>Tile ${tile.x}, ${tile.y}</h2>
       <dl>
         <dt>Type</dt><dd>${tile.type}</dd>
+        <dt>Territorium</dt><dd>${owner ?? "neutraal"}</dd>
         <dt>Hoogte</dt><dd>${tile.elevation.toFixed(2)}</dd>
         <dt>Vocht</dt><dd>${tile.moisture.toFixed(2)}</dd>
         <dt>Vruchtbaar</dt><dd>${tile.fertility.toFixed(2)}</dd>

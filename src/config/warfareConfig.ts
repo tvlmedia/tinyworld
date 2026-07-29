@@ -1,0 +1,20 @@
+export const WARFARE = {
+  decisionInterval: 64,
+  armySpeed: 2.35,
+  baseSupply: 100,
+  supplyUsePerSecond: 0.06,
+  musterPopulationShare: 0.16,
+  minimumArmySize: 4,
+  strengthPerSoldier: 6,
+  moraleBase: 64,
+  defensiveMoraleBonus: 8,
+  siegeDistance: 2.6,
+  battleVariance: 0.18,
+  captureThreshold: 14,
+  exhaustionPerCasualty: 1.4,
+  exhaustionPerDay: 0.45,
+  peaceExhaustionThreshold: 82,
+  minimumWarDays: 4,
+  raidFireChance: 0.35
+} as const;
+

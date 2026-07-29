@@ -1,4 +1,12 @@
-import { defaultCivilizationState, GameState, DEFAULT_SETTINGS, SettingsState } from "../app/GameState";
+import {
+  bootstrapCivilizationState,
+  createEmptyTerritory,
+  defaultCivilizationState,
+  defaultCivilizationTimers,
+  GameState,
+  DEFAULT_SETTINGS,
+  SettingsState
+} from "../app/GameState";
 import { IdGenerator } from "../utils/IdGenerator";
 import { Pathfinder } from "../ai/Pathfinding";
 import { SeededRandom } from "../world/SeededRandom";
@@ -67,8 +75,19 @@ export class SaveManager {
     for (const building of migrated.buildings) ids.observe(building.id);
     for (const villager of migrated.villagers) ids.observe(villager.id);
     for (const event of migrated.events) ids.observe(event.id);
+    for (const settlement of migrated.settlements ?? []) ids.observe(settlement.id);
+    for (const civilization of migrated.civilizations ?? []) ids.observe(civilization.id);
+    for (const history of migrated.historicEvents ?? []) ids.observe(history.id);
+    for (const army of migrated.armies ?? []) ids.observe(army.id);
+    for (const route of migrated.tradeRoutes ?? []) ids.observe(route.id);
+    for (const group of migrated.colonistGroups ?? []) ids.observe(group.id);
+    const world = deserializeWorld(migrated.world);
+    const territory =
+      migrated.territory && migrated.territory.ownerByTile.length === world.width * world.height
+        ? migrated.territory
+        : createEmptyTerritory(world);
     const state: GameState = {
-      world: deserializeWorld(migrated.world),
+      world,
       rng: new SeededRandom(`${migrated.world.seed}:simulation:${migrated.time.day}:${Math.floor(migrated.time.minutes)}`),
       ids,
       pathfinder: new Pathfinder(),
@@ -100,8 +119,22 @@ export class SaveManager {
         workshopBonus: false,
         mineBonus: false
       },
-      civilization: { ...defaultCivilizationState(), ...(migrated.civilization ?? {}) }
+      civilization: { ...defaultCivilizationState(), ...(migrated.civilization ?? {}) },
+      mapMode: migrated.mapMode ?? "normal",
+      selectedCivilizationId: migrated.selectedCivilizationId,
+      settlements: migrated.settlements ?? [],
+      civilizations: migrated.civilizations ?? [],
+      diplomaticRelations: migrated.diplomaticRelations ?? [],
+      wars: migrated.wars ?? [],
+      armies: migrated.armies ?? [],
+      tradeRoutes: migrated.tradeRoutes ?? [],
+      colonistGroups: migrated.colonistGroups ?? [],
+      migrationGroups: migrated.migrationGroups ?? [],
+      historicEvents: migrated.historicEvents ?? [],
+      territory,
+      civilizationTimers: { ...defaultCivilizationTimers(), ...(migrated.civilizationTimers ?? {}) }
     };
+    bootstrapCivilizationState(state);
     refreshBuildingEffects(state);
     return state;
   }

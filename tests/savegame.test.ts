@@ -15,6 +15,6 @@ describe("savegame serialization", () => {
 
   it("migrates version zero saves", () => {
     const save = serializeGame(createNewGameState("migration", 64));
-    expect(migrateSaveGame({ ...save, version: 0 }).version).toBe(2);
+    expect(migrateSaveGame({ ...save, version: 0 }).version).toBe(3);
   });
 });

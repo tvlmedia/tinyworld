@@ -45,6 +45,9 @@ export interface Building {
   materialsDelivered: ResourceStore;
   storage: ResourceStore;
   productionTimer: number;
+  civilizationId?: string;
+  settlementId?: string;
+  visualEra?: string;
 }
 
 export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
