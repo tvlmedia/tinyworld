@@ -4,6 +4,8 @@ export const DEFAULT_WORLD_SIZE = 512;
 export const TILE_SIZE = 16;
 export const FIXED_TIMESTEP_MS = 100;
 export const MAX_CATCH_UP_TICKS = 5;
+export const MAX_SIMULATION_STEP_SECONDS = 1;
+export const UI_UPDATE_INTERVAL_MS = 200;
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 
 export interface WorldSizeOption {
@@ -24,3 +26,7 @@ export type WorldSize = (typeof WORLD_SIZES)[number];
 export type GameSpeed = 0 | 1 | 2 | 4 | 8 | 16 | 32;
 
 export const GAME_SPEEDS: GameSpeed[] = [1, 2, 4, 8, 16, 32];
+
+export function simulationSubsteps(realDt: number, speed: GameSpeed): number {
+  return Math.max(1, Math.ceil((realDt * speed) / MAX_SIMULATION_STEP_SECONDS));
+}

@@ -13,10 +13,11 @@ export interface MinimapRect {
 export class MinimapRenderer {
   private cache?: { key: string; canvas: HTMLCanvasElement };
   private rect: MinimapRect = { x: 0, y: 0, width: 0, height: 0 };
+  private nextBaseRefreshAt = 0;
 
-  draw(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, viewportWidth: number, viewportHeight: number): void {
+  draw(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, viewportWidth: number, viewportHeight: number, time: number): void {
     this.rect = minimapRect(viewportWidth, viewportHeight);
-    const base = this.baseCanvas(state);
+    const base = this.baseCanvas(state, time);
     ctx.fillStyle = "rgba(18, 24, 23, 0.82)";
     roundRect(ctx, this.rect.x - 6, this.rect.y - 6, this.rect.width + 12, this.rect.height + 12, 8);
     ctx.fill();
@@ -33,9 +34,10 @@ export class MinimapRenderer {
     return minimapScreenToWorld(screenX, screenY, this.rect, state.world.width, state.world.height);
   }
 
-  private baseCanvas(state: GameState): HTMLCanvasElement {
+  private baseCanvas(state: GameState, time: number): HTMLCanvasElement {
     const key = `${state.world.seed}:${state.world.width}:${state.world.height}:${state.world.version}:${state.mapMode === "political" ? state.territory.version : 0}:${state.mapMode}`;
     if (this.cache?.key === key) return this.cache.canvas;
+    if (this.cache && time < this.nextBaseRefreshAt) return this.cache.canvas;
     const canvas = document.createElement("canvas");
     canvas.width = state.world.width;
     canvas.height = state.world.height;
@@ -66,6 +68,7 @@ export class MinimapRenderer {
     }
     ctx.putImageData(image, 0, 0);
     this.cache = { key, canvas };
+    this.nextBaseRefreshAt = time + 1_500;
     return canvas;
   }
 
@@ -138,4 +141,3 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: n
   ctx.lineTo(x, y + radius);
   ctx.quadraticCurveTo(x, y, x + radius, y);
 }
-

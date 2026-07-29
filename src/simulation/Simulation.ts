@@ -1,4 +1,4 @@
-import { updateVillager } from "../ai/VillagerBrain";
+import { createVillagerUpdateContext, updateVillager } from "../ai/VillagerBrain";
 import { refreshBuildingEffects, GameState } from "../app/GameState";
 import { updateCivilization } from "./CivilizationSystem";
 import { updateDiplomacyAndTrade } from "./DiplomacySystem";
@@ -21,20 +21,28 @@ import { Building } from "../entities/Building";
 import { getTile } from "../world/World";
 
 export class Simulation {
+  private housingElapsed = 0;
+  private civilizationElapsed = 0;
+  private buildingEffectsElapsed = 0;
+
   update(state: GameState, dt: number): void {
     const started = performance.now();
     updateTime(state, dt);
     updateWeather(state, dt);
     updateNature(state, dt);
-    updateHousing(state);
     updateHousingUpgrades(state, dt);
     updateSettlementPlanner(state, dt);
+    const villagerContext = createVillagerUpdateContext(state);
     for (const villager of state.villagers) {
-      updateVillager(villager, state, dt);
+      updateVillager(villager, state, dt, villagerContext);
     }
     updateProduction(state, dt);
     updatePopulation(state, dt);
-    updateCivilization(state, dt);
+    this.civilizationElapsed += dt;
+    if (this.civilizationElapsed >= 2) {
+      updateCivilization(state, this.civilizationElapsed);
+      this.civilizationElapsed = 0;
+    }
     updateRecovery(state, dt);
     updateExpansion(state, dt);
     updateTechnology(state, dt);
@@ -44,9 +52,17 @@ export class Simulation {
     updateStability(state, dt);
     updateFire(state, dt);
     updateEmergencyResponse(state, dt);
-    updateHousing(state);
+    this.housingElapsed += dt;
+    if (this.housingElapsed >= 2) {
+      updateHousing(state);
+      this.housingElapsed = 0;
+    }
     updateCooldowns(state, dt);
-    refreshBuildingEffects(state);
+    this.buildingEffectsElapsed += dt;
+    if (this.buildingEffectsElapsed >= 2) {
+      refreshBuildingEffects(state);
+      this.buildingEffectsElapsed = 0;
+    }
     state.debug.tickMs = performance.now() - started;
     state.debug.activePaths = state.pathfinder.activePathCount;
     state.debug.lastVisitedNodes = state.pathfinder.lastVisitedNodes;

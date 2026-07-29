@@ -1,4 +1,4 @@
-import { AUTOSAVE_INTERVAL_MS, DEFAULT_WORLD_SIZE, GameSpeed } from "./Config";
+import { AUTOSAVE_INTERVAL_MS, DEFAULT_WORLD_SIZE, GameSpeed, simulationSubsteps } from "./Config";
 import { createNewGameState, GameState, SettingsState } from "./GameState";
 import { GameLoop } from "./GameLoop";
 import { InputManager } from "../input/InputManager";
@@ -42,7 +42,7 @@ export class Game {
       update: (dt) => {
         if (!this.state.time.paused && this.state.time.speed > 0) {
           const simulationDt = dt * this.state.time.speed;
-          const steps = Math.ceil(simulationDt / 0.5);
+          const steps = simulationSubsteps(dt, this.state.time.speed);
           const stepDt = simulationDt / steps;
           for (let step = 0; step < steps; step += 1) {
             this.simulation.update(this.state, stepDt);
@@ -56,7 +56,7 @@ export class Game {
       render: (time, dt) => {
         this.state.debug.fps = this.loop.fps;
         this.renderer.render(this.state, time, dt);
-        this.ui.update();
+        this.ui.updateFrame(time);
       }
     });
   }

@@ -8,6 +8,10 @@ import { addEvent } from "./EventSystem";
 import { economyMultiplier } from "./TechnologySystem";
 
 export function updateEmergencyResponse(state: GameState, dt = 0): void {
+  if (state.fires.length === 0) {
+    if (state.villagers.some((villager) => villager.emergencyFire)) clearFinishedAssignments(state);
+    return;
+  }
   clearFinishedAssignments(state);
   const fireTargets = state.fires
     .map((fire) => ({ fire, building: responseBuildingFor(state, fire) }))

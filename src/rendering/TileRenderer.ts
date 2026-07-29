@@ -22,14 +22,70 @@ const CHUNK_SIZE = 32;
 
 export class TileRenderer {
   private chunkCache = new Map<string, HTMLCanvasElement>();
+  private overviewCache?: { key: string; canvas: HTMLCanvasElement };
+  private nextOverviewRefreshAt = 0;
+  private cacheVersion = -1;
+  private cacheWeather = "";
+  private nextVersionRefreshAt = 0;
 
   draw(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, time: number): void {
+    if (camera.zoom < 0.2) {
+      this.drawOverview(ctx, state, camera, time);
+      return;
+    }
+    this.refreshCacheVersion(state, time);
     const bounds = camera.visibleTileBounds(state.world);
     this.drawCachedChunks(ctx, state, camera, bounds);
 
     if (state.debug.enabled && state.debug.showChunks) {
       this.drawChunks(ctx, camera, state);
     }
+  }
+
+  private drawOverview(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, time: number): void {
+    const key = `${state.world.seed}:${state.world.version}:${state.weather.current}`;
+    if ((!this.overviewCache || time >= this.nextOverviewRefreshAt) && this.overviewCache?.key !== key) {
+      const canvas = document.createElement("canvas");
+      canvas.width = state.world.width;
+      canvas.height = state.world.height;
+      const overviewContext = canvas.getContext("2d");
+      if (overviewContext) {
+        const image = overviewContext.createImageData(state.world.width, state.world.height);
+        const drought = state.weather.current === "drought";
+        for (let index = 0; index < state.world.tiles.length; index += 1) {
+          const tile = state.world.tiles[index];
+          const base = hexToRgb(COLORS[tile.type]);
+          const penalty = drought && (tile.type === "grass" || tile.type === "forest") ? 18 : 0;
+          const offset = index * 4;
+          image.data[offset] = Math.max(0, base[0] - penalty);
+          image.data[offset + 1] = Math.max(0, base[1] - penalty);
+          image.data[offset + 2] = Math.max(0, base[2] - penalty);
+          image.data[offset + 3] = 255;
+        }
+        overviewContext.putImageData(image, 0, 0);
+      }
+      this.overviewCache = { key, canvas };
+      this.nextOverviewRefreshAt = time + 1_000;
+    }
+    if (!this.overviewCache) return;
+    const screen = camera.worldToScreen(0, 0);
+    ctx.drawImage(
+      this.overviewCache.canvas,
+      Math.floor(screen.x),
+      Math.floor(screen.y),
+      Math.ceil(state.world.width * TILE_SIZE * camera.zoom),
+      Math.ceil(state.world.height * TILE_SIZE * camera.zoom)
+    );
+  }
+
+  private refreshCacheVersion(state: GameState, time: number): void {
+    const weatherChanged = this.cacheWeather !== state.weather.current;
+    const versionReady = this.cacheVersion !== state.world.version && (this.cacheVersion < 0 || time >= this.nextVersionRefreshAt);
+    if (!weatherChanged && !versionReady) return;
+    this.cacheVersion = state.world.version;
+    this.cacheWeather = state.weather.current;
+    this.nextVersionRefreshAt = time + 300;
+    this.chunkCache.clear();
   }
 
   private drawCachedChunks(
@@ -56,7 +112,7 @@ export class TileRenderer {
   }
 
   private chunkCanvas(state: GameState, chunkX: number, chunkY: number): HTMLCanvasElement {
-    const key = `${state.world.version}:${state.weather.current}:${chunkX},${chunkY}`;
+    const key = `${this.cacheVersion}:${this.cacheWeather}:${chunkX},${chunkY}`;
     const cached = this.chunkCache.get(key);
     if (cached) return cached;
     if (this.chunkCache.size > 420) this.chunkCache.clear();
@@ -282,4 +338,9 @@ function shade(hex: string, amount: number): string {
   const g = Math.max(0, Math.min(255, ((value >> 8) & 255) + amount));
   const b = Math.max(0, Math.min(255, (value & 255) + amount));
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return [value >> 16, (value >> 8) & 255, value & 255];
 }

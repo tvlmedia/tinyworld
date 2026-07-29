@@ -1,4 +1,4 @@
-import { DEFAULT_WORLD_SIZE, GAME_SPEEDS, GameSpeed, WORLD_SIZE_OPTIONS } from "../app/Config";
+import { DEFAULT_WORLD_SIZE, GAME_SPEEDS, GameSpeed, UI_UPDATE_INTERVAL_MS, WORLD_SIZE_OPTIONS } from "../app/Config";
 import { GameState, SettingsState } from "../app/GameState";
 import { SaveManager, SaveMeta } from "../persistence/SaveManager";
 import { Renderer } from "../rendering/Renderer";
@@ -24,6 +24,7 @@ export interface UIActions {
 export class UIManager {
   private saveMetas: SaveMeta[] = [];
   private readonly htmlCache = new Map<string, string>();
+  private lastFrameUpdate = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly root: HTMLElement,
@@ -43,6 +44,17 @@ export class UIManager {
   }
 
   update(): void {
+    this.renderDynamicUi();
+    this.lastFrameUpdate = performance.now();
+  }
+
+  updateFrame(time: number): void {
+    if (time - this.lastFrameUpdate < UI_UPDATE_INTERVAL_MS) return;
+    this.renderDynamicUi();
+    this.lastFrameUpdate = time;
+  }
+
+  private renderDynamicUi(): void {
     this.replaceHtml("topbar", hudSummary(this.state));
     this.replaceHtml("inspector", inspectorHtml(this.state));
     this.replaceHtml("map-modes", mapModeHtml(this.state));

@@ -57,7 +57,7 @@ export class Renderer {
     this.lighting.draw(this.ctx, state, width, height);
     this.weather.draw(this.ctx, state, width, height, time);
     this.mapOverlay.draw(this.ctx, state, width, height);
-    this.minimap.draw(this.ctx, state, this.camera, width, height);
+    this.minimap.draw(this.ctx, state, this.camera, width, height, time);
     this.particles.update(dt);
     this.particles.draw(this.ctx);
   }

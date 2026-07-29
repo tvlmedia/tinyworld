@@ -15,11 +15,23 @@ import { RECOVERY } from "../config/recoveryConfig";
 
 const RESOURCE_TYPES: ResourceType[] = ["wood", "food", "stone"];
 
-export function updateVillager(villager: Villager, state: GameState, dt: number): void {
+export interface VillagerUpdateContext {
+  buildingById: Map<string, Building>;
+  activeFireKeys: Set<string>;
+}
+
+export function createVillagerUpdateContext(state: GameState): VillagerUpdateContext {
+  return {
+    buildingById: new Map(state.buildings.map((building) => [building.id, building])),
+    activeFireKeys: new Set(state.fires.map((fire) => `${fire.x},${fire.y}`))
+  };
+}
+
+export function updateVillager(villager: Villager, state: GameState, dt: number, context?: VillagerUpdateContext): void {
   villager.stateElapsed = (villager.stateElapsed ?? 0) + dt;
   updateStuckTimer(villager, dt);
   villager.stuckResets ??= 0;
-  if (validateVillagerAssignment(villager, state)) return;
+  if (validateVillagerAssignment(villager, state, context)) return;
   villager.age += dt / 240;
   villager.hunger = Math.min(100, villager.hunger + dt * 0.18);
   villager.energy = Math.max(0, villager.energy - dt * (state.time.isNight ? 0.18 : 0.08));
@@ -189,25 +201,31 @@ function decideNextAction(villager: Villager, state: GameState): void {
 }
 
 function moveAlongPath(villager: Villager, state: GameState, dt: number): void {
-  const next = villager.path[0];
-  const dx = next.x + 0.5 - villager.x;
-  const dy = next.y + 0.5 - villager.y;
-  const length = Math.hypot(dx, dy);
-  const currentTile = getTile(state.world, Math.floor(villager.x), Math.floor(villager.y));
-  const roadBoost = currentTile?.type === "road" ? 1.4 : 1;
   const weatherFactor = state.weather.current === "rain" ? 0.88 : state.weather.current === "storm" ? 0.76 : 1;
-  const step = villager.speed * roadBoost * weatherFactor * dt;
+  let remainingSeconds = dt;
+  while (villager.path.length > 0 && remainingSeconds > 0) {
+    const next = villager.path[0];
+    const dx = next.x + 0.5 - villager.x;
+    const dy = next.y + 0.5 - villager.y;
+    const length = Math.hypot(dx, dy);
+    const currentTile = getTile(state.world, Math.floor(villager.x), Math.floor(villager.y));
+    const speed = villager.speed * (currentTile?.type === "road" ? 1.4 : 1) * weatherFactor;
+    const travelSeconds = length / speed;
 
-  if (length <= step || length < 0.02) {
-    villager.x = next.x + 0.5;
-    villager.y = next.y + 0.5;
-    villager.path.shift();
-    if (villager.path.length === 0) arrive(villager, state);
-    return;
+    if (travelSeconds <= remainingSeconds || length < 0.02) {
+      villager.x = next.x + 0.5;
+      villager.y = next.y + 0.5;
+      villager.path.shift();
+      remainingSeconds = Math.max(0, remainingSeconds - travelSeconds);
+      if (villager.path.length === 0) arrive(villager, state);
+      continue;
+    }
+
+    const step = speed * remainingSeconds;
+    villager.x += (dx / length) * step;
+    villager.y += (dy / length) * step;
+    remainingSeconds = 0;
   }
-
-  villager.x += (dx / length) * step;
-  villager.y += (dy / length) * step;
 }
 
 function arrive(villager: Villager, state: GameState): void {
@@ -464,22 +482,19 @@ function findNearestTile(
 ) {
   const startX = Math.floor(villager.x);
   const startY = Math.floor(villager.y);
-  let best = undefined as NonNullable<ReturnType<typeof getTile>> | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (let y = Math.max(0, startY - radius); y <= Math.min(state.world.height - 1, startY + radius); y += 1) {
-    for (let x = Math.max(0, startX - radius); x <= Math.min(state.world.width - 1, startX + radius); x += 1) {
-      const tile = getTile(state.world, x, y);
-      if (!tile || !predicate(tile) || !isWalkableTile(tile)) continue;
-      const distanceToTile = Math.abs(x - startX) + Math.abs(y - startY);
-      if (distanceToTile < bestDistance) {
-        best = tile;
-        bestDistance = distanceToTile;
-      }
+  const maxRadius = Math.min(radius, Math.max(state.world.width, state.world.height));
+  for (let distanceFromStart = 0; distanceFromStart <= maxRadius; distanceFromStart += 1) {
+    for (let dx = -distanceFromStart; dx <= distanceFromStart; dx += 1) {
+      const dy = distanceFromStart - Math.abs(dx);
+      const upper = getTile(state.world, startX + dx, startY - dy);
+      if (upper && predicate(upper) && isWalkableTile(upper)) return upper;
+      if (dy === 0) continue;
+      const lower = getTile(state.world, startX + dx, startY + dy);
+      if (lower && predicate(lower) && isWalkableTile(lower)) return lower;
     }
   }
 
-  return best;
+  return undefined;
 }
 
 function findUsefulBuildSite(state: GameState, villager: Villager): Building | undefined {
@@ -611,22 +626,40 @@ export function resetInvalidVillagerAssignment(villager: Villager): void {
   setVillagerState(villager, "idle");
 }
 
-function validateVillagerAssignment(villager: Villager, state: GameState): boolean {
-  if (villager.homeId && !state.buildings.some((building) => building.id === villager.homeId && building.status === "complete")) {
+function validateVillagerAssignment(villager: Villager, state: GameState, context?: VillagerUpdateContext): boolean {
+  const buildingById = context?.buildingById;
+  const home = villager.homeId
+    ? context
+      ? buildingById?.get(villager.homeId)
+      : state.buildings.find((building) => building.id === villager.homeId)
+    : undefined;
+  if (villager.homeId && home?.status !== "complete") {
     villager.homeId = undefined;
   }
-  if (villager.workplaceId && !state.buildings.some((building) => building.id === villager.workplaceId && building.status === "complete")) {
+  const workplace = villager.workplaceId
+    ? context
+      ? buildingById?.get(villager.workplaceId)
+      : state.buildings.find((building) => building.id === villager.workplaceId)
+    : undefined;
+  if (villager.workplaceId && workplace?.status !== "complete") {
     villager.workplaceId = undefined;
   }
   if (villager.targetBuildingId) {
-    const target = state.buildings.find((building) => building.id === villager.targetBuildingId);
+    const target = context
+      ? buildingById?.get(villager.targetBuildingId)
+      : state.buildings.find((building) => building.id === villager.targetBuildingId);
     const allowsCompleteTarget = ["deliverWood", "deliverFood", "deliverStone", "eat", "sleep"].includes(villager.state);
     if (!target || target.ruined || (target.status === "complete" && !allowsCompleteTarget)) {
       resetInvalidVillagerAssignment(villager);
       return true;
     }
   }
-  if (villager.emergencyFire && !state.fires.some((fire) => fire.x === villager.emergencyFire!.x && fire.y === villager.emergencyFire!.y)) {
+  const emergencyFireExists =
+    villager.emergencyFire &&
+    (context
+      ? context.activeFireKeys.has(`${villager.emergencyFire.x},${villager.emergencyFire.y}`)
+      : state.fires.some((fire) => fire.x === villager.emergencyFire!.x && fire.y === villager.emergencyFire!.y));
+  if (villager.emergencyFire && !emergencyFireExists) {
     resetInvalidVillagerAssignment(villager);
     return true;
   }

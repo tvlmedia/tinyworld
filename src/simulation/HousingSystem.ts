@@ -9,6 +9,7 @@ export function updateHousing(state: GameState): void {
 
 export function assignHomes(state: GameState): void {
   const houses = completedHouses(state);
+  const houseById = new Map(houses.map((house) => [house.id, house]));
   const validHomes = new Set(houses.map((house) => house.id));
   const occupancy = new Map<string, number>();
   for (const house of houses) occupancy.set(house.id, 0);
@@ -19,7 +20,7 @@ export function assignHomes(state: GameState): void {
       continue;
     }
 
-    const house = houses.find((item) => item.id === villager.homeId);
+    const house = houseById.get(villager.homeId);
     const used = house ? occupancy.get(house.id) ?? 0 : 0;
     if (!house || used >= house.capacity) {
       villager.homeId = undefined;
@@ -69,9 +70,16 @@ export function findHouseWithOpenBed(
 ): Building | undefined {
   const houses = completedHouses(state);
   const occupancy = providedOccupancy ?? occupancyByHouse(state, houses);
-  return houses
-    .filter((house) => (occupancy.get(house.id) ?? 0) < house.capacity)
-    .sort((a, b) => distance(buildingMidpoint(a), point) - distance(buildingMidpoint(b), point))[0];
+  let nearest: Building | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const house of houses) {
+    if ((occupancy.get(house.id) ?? 0) >= house.capacity) continue;
+    const houseDistance = distance(buildingMidpoint(house), point);
+    if (houseDistance >= nearestDistance) continue;
+    nearest = house;
+    nearestDistance = houseDistance;
+  }
+  return nearest;
 }
 
 function completedHouses(state: GameState): Building[] {

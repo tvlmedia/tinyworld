@@ -16,9 +16,17 @@ export class EntityRenderer {
     for (const fire of state.fires.filter((fire) => fire.x >= bounds.minX - 3 && fire.x <= bounds.maxX + 3 && fire.y >= bounds.minY - 3 && fire.y <= bounds.maxY + 3)) {
       this.drawFire(ctx, camera, fire.x, fire.y, fire.intensity, time);
     }
-    const orderedVillagers = state.villagers
-      .filter((villager) => villager.x >= bounds.minX - 2 && villager.x <= bounds.maxX + 2 && villager.y >= bounds.minY - 2 && villager.y <= bounds.maxY + 2)
-      .sort((a, b) => a.y - b.y);
+    const selectedVillagerId = state.selected.kind === "villager" ? state.selected.id : undefined;
+    const villagerStride =
+      camera.zoom < 0.3 ? Math.max(1, Math.ceil(state.villagers.length / 180)) : camera.zoom < 0.55 ? Math.max(1, Math.ceil(state.villagers.length / 360)) : 1;
+    const orderedVillagers: Villager[] = [];
+    for (let index = 0; index < state.villagers.length; index += 1) {
+      const villager = state.villagers[index];
+      if (villager.id !== selectedVillagerId && index % villagerStride !== 0) continue;
+      if (villager.x < bounds.minX - 2 || villager.x > bounds.maxX + 2 || villager.y < bounds.minY - 2 || villager.y > bounds.maxY + 2) continue;
+      orderedVillagers.push(villager);
+    }
+    orderedVillagers.sort((a, b) => a.y - b.y);
     for (const villager of orderedVillagers) this.drawVillager(ctx, state, camera, villager, time);
     if (state.mapMode === "trade" || state.mapMode === "diplomacy") this.drawTradeRoutes(ctx, state, camera);
     if (state.mapMode === "war" || state.mapMode === "diplomacy") this.drawWarLines(ctx, state, camera);
@@ -436,6 +444,12 @@ export class EntityRenderer {
     const bob = Math.sin(time * 0.012 + villager.x) * size * 0.04;
     const x = screen.x;
     const y = screen.y + bob;
+
+    if (camera.zoom < 0.3 && !selected) {
+      ctx.fillStyle = jobColor(villager.job);
+      ctx.fillRect(Math.floor(x), Math.floor(y), Math.max(1, size * 0.2), Math.max(1, size * 0.2));
+      return;
+    }
 
     if (selected) {
       ctx.strokeStyle = "#fff3a6";
