@@ -34,7 +34,17 @@ function updateMacroPopulation(state: GameState): void {
   for (const settlement of state.settlements) {
     const freeHousing = Math.max(0, settlement.housingCapacity - settlement.population);
     if (settlement.foodSecurity > 62 && settlement.happiness > 54 && freeHousing > 0) {
-      const growth = Math.min(freeHousing, settlement.tier === "camp" ? 1 : settlement.tier === "hamlet" ? 2 : 3);
+      const growthRate =
+        settlement.tier === "camp"
+          ? 1
+          : settlement.tier === "hamlet"
+            ? 3
+            : settlement.tier === "village"
+              ? 6
+              : settlement.tier === "town"
+                ? 10
+                : 14;
+      const growth = Math.min(freeHousing, growthRate);
       settlement.abstractPopulation += growth;
       settlement.stockpile.food = Math.max(0, settlement.stockpile.food - growth * 1.5);
     } else if (settlement.foodSecurity < 22 && settlement.abstractPopulation > 0) {

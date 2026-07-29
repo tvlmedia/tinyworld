@@ -45,7 +45,13 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
 
   if (completed("mine") < 1 && !planned("mine")) return "mine";
   if (population >= 10 && completed("market") >= 1 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
-  if (bedCapacity < population + 2 && !planned("house")) return "house";
+  if (
+    bedCapacity < population + 2 &&
+    (bedCapacity < population || completed("house") < 3) &&
+    !planned("house")
+  ) {
+    return "house";
+  }
   if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
   if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
   if (population >= 6 && completed("well") < 1 && !planned("well")) return "well";

@@ -49,6 +49,7 @@ export interface Building {
   materialsDelivered: ResourceStore;
   storage: ResourceStore;
   productionTimer: number;
+  upgradeLevel?: number;
   civilizationId?: string;
   settlementId?: string;
   visualEra?: string;
@@ -209,7 +210,8 @@ export function createBuilding(id: string, type: BuildingType, x: number, y: num
     storageCapacity: definition.storageCapacity ?? 0,
     materialsDelivered: delivered,
     storage: cloneResources({}),
-    productionTimer: 0
+    productionTimer: 0,
+    upgradeLevel: 1
   };
 }
 

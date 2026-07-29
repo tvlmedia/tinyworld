@@ -120,6 +120,7 @@ export interface GameState {
   settings: SettingsState;
   plannerTimer: number;
   populationTimer: number;
+  housingUpgradeTimer: number;
   natureCursor: number;
   burnedRecoveryCursor: number;
   lastAutosaveAt: number;
@@ -214,6 +215,7 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     settings: { ...settings },
     plannerTimer: 12,
     populationTimer: 0,
+    housingUpgradeTimer: 24,
     natureCursor: 0,
     burnedRecoveryCursor: 0,
     lastAutosaveAt: 0,

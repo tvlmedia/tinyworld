@@ -4,6 +4,7 @@ import { SETTLEMENT_TIER_LABELS } from "../config/settlementConfig";
 import { describeState } from "../entities/Villager";
 import { occupantsForHouse } from "../simulation/HousingSystem";
 import { getTile, tileIndex } from "../world/World";
+import { houseUpgradeLabel } from "../simulation/HousingUpgradeSystem";
 
 export function inspectorHtml(state: GameState): string {
   const selected = state.selected;
@@ -32,16 +33,18 @@ export function inspectorHtml(state: GameState): string {
     const building = state.buildings.find((item) => item.id === selected.id);
     if (!building) return emptyInspector();
     const definition = BUILDING_DEFINITIONS[building.type];
+    const buildingName = building.type === "house" ? houseUpgradeLabel(building) : definition.label;
     const occupants = building.type === "house" ? occupantsForHouse(state, building.id).length : 0;
     const status = building.civilizationId ? building.status : "verlaten";
     return `
-      <h2>${definition.label}</h2>
+      <h2>${buildingName}</h2>
       <dl>
         <dt>Status</dt><dd>${status}</dd>
         <dt>Gezondheid</dt><dd>${Math.round(building.health)} / ${building.maxHealth}</dd>
         <dt>Voortgang</dt><dd>${Math.round((building.progress / building.workRequired) * 100)}%</dd>
         <dt>Materiaal</dt><dd>${allMaterialsDelivered(building) ? "klaar" : costLabel(building.type)}</dd>
         <dt>Bedden</dt><dd>${building.capacity > 0 ? `${occupants} / ${building.capacity}` : "-"}</dd>
+        <dt>Woonniveau</dt><dd>${building.type === "house" ? `${building.upgradeLevel ?? 1} / 4` : "-"}</dd>
         <dt>Opslagruimte</dt><dd>${building.storageCapacity}</dd>
         <dt>Productie</dt><dd>${building.civilizationId ? buildingProductionLabel(building.type) : "inactief"}</dd>
       </dl>

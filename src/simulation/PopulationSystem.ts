@@ -8,9 +8,10 @@ import { addEvent } from "./EventSystem";
 import { assignHomes, findHouseWithOpenBed, freeBedCount } from "./HousingSystem";
 
 export function updatePopulation(state: GameState, dt: number): void {
-  if (state.villagers.length >= 100) return;
+  const populationLimit = state.world.width >= 512 ? 220 : state.world.width >= 256 ? 180 : 140;
+  if (state.villagers.length >= populationLimit) return;
   state.populationTimer += dt;
-  const growthInterval = Math.max(48, 82 - state.civilization.level * 8);
+  const growthInterval = Math.max(30, 68 - state.civilization.level * 6);
   if (state.populationTimer < growthInterval) return;
   state.populationTimer = 0;
 
@@ -18,12 +19,15 @@ export function updatePopulation(state: GameState, dt: number): void {
   const averageHappiness =
     state.villagers.reduce((sum, villager) => sum + villager.happiness, 0) / Math.max(1, state.villagers.length);
 
-  if (state.resources.food < state.villagers.length * 9 || freeBedCount(state) < 1 || averageHappiness < 52 || state.fires.length > 0) {
+  if (state.resources.food < state.villagers.length * 6 || freeBedCount(state) < 1 || averageHappiness < 52 || state.fires.length > 0) {
     return;
   }
 
   spawnVillager(state);
-  if (state.villagers.length < 100 && state.civilization.level >= 2 && freeBedCount(state) >= 1 && state.resources.food > state.villagers.length * 12) {
+  if (state.villagers.length < populationLimit && state.civilization.level >= 2 && freeBedCount(state) >= 1 && state.resources.food > state.villagers.length * 8) {
+    spawnVillager(state);
+  }
+  if (state.villagers.length < populationLimit && state.civilization.level >= 4 && freeBedCount(state) >= 1 && state.resources.food > state.villagers.length * 10) {
     spawnVillager(state);
   }
 }
@@ -33,13 +37,16 @@ function spawnVillager(state: GameState): void {
   if (!home) return;
   const position = findSpawnTile(state, home);
   if (!position) return;
-  state.resources.food -= 10;
+  state.resources.food -= 8;
   const index = state.villagers.length;
   const name = villagerName(index);
   const villager = createVillager(state.ids.next("villager"), name, position.x + 0.5, position.y + 0.5, assignJobByIndex(index), 0);
   villager.homeId = home.id;
+  villager.settlementId = home.settlementId;
+  villager.civilizationId = home.civilizationId;
   state.villagers.push(villager);
-  addEvent(state, state.civilization.level >= 2 ? `${name} werd geboren in ${state.world.name}.` : `${name} sloot zich aan bij het dorp.`);
+  const settlement = state.settlements.find((item) => item.id === home.settlementId);
+  addEvent(state, state.civilization.level >= 2 ? `${name} werd geboren in ${settlement?.name ?? state.world.name}.` : `${name} sloot zich aan bij het dorp.`);
 }
 
 function findSpawnTile(state: GameState, home: Building): { x: number; y: number } | undefined {

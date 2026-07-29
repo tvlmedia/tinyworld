@@ -6,6 +6,7 @@ import { updateExpansion } from "./ExpansionSystem";
 import { updateFire } from "./FireSystem";
 import { updateEmergencyResponse } from "./EmergencyResponseSystem";
 import { updateHousing } from "./HousingSystem";
+import { updateHousingUpgrades } from "./HousingUpgradeSystem";
 import { updateNature } from "./NatureSystem";
 import { updatePopulation } from "./PopulationSystem";
 import { updateSettlementPlanner } from "./SettlementPlanner";
@@ -24,6 +25,7 @@ export class Simulation {
     updateWeather(state, dt);
     updateNature(state, dt);
     updateHousing(state);
+    updateHousingUpgrades(state, dt);
     updateSettlementPlanner(state, dt);
     for (const villager of state.villagers) {
       updateVillager(villager, state, dt);

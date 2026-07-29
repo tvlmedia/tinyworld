@@ -201,6 +201,32 @@ export class EntityRenderer {
       return;
     }
 
+    if (building.type === "house" && (building.upgradeLevel ?? 1) > 1) {
+      const level = building.upgradeLevel ?? 1;
+      ctx.fillStyle = level >= 4 ? "#8f9694" : level >= 3 ? "#a49a8d" : "#b9785e";
+      ctx.fillRect(x + width * 0.08, y + height * (level >= 3 ? 0.16 : 0.26), width * 0.84, height * (level >= 3 ? 0.72 : 0.62));
+      ctx.fillStyle = level >= 4 ? "#565c5b" : "#71463a";
+      if (level >= 4) {
+        ctx.fillRect(x + width * 0.06, y + height * 0.1, width * 0.88, height * 0.1);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(x + width * 0.03, y + height * 0.3);
+        ctx.lineTo(x + width * 0.5, y + height * 0.04);
+        ctx.lineTo(x + width * 0.97, y + height * 0.3);
+        ctx.closePath();
+        ctx.fill();
+      }
+      const rows = level >= 4 ? 3 : level >= 3 ? 2 : 1;
+      ctx.fillStyle = "#e6cf8b";
+      for (let row = 0; row < rows; row += 1) {
+        ctx.fillRect(x + width * 0.18, y + height * (0.27 + row * 0.18), width * 0.17, height * 0.11);
+        ctx.fillRect(x + width * 0.65, y + height * (0.27 + row * 0.18), width * 0.17, height * 0.11);
+      }
+      ctx.fillStyle = "#49362d";
+      ctx.fillRect(x + width * 0.43, y + height * 0.64, width * 0.14, height * 0.24);
+      return;
+    }
+
     const body =
       building.visualEra === "industry"
         ? "#7d8584"

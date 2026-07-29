@@ -104,6 +104,7 @@ export class SaveManager {
       settings: { ...DEFAULT_SETTINGS, ...migrated.settings },
       plannerTimer: 8,
       populationTimer: 0,
+      housingUpgradeTimer: migrated.housingUpgradeTimer ?? 24,
       natureCursor: 0,
       burnedRecoveryCursor: 0,
       lastAutosaveAt: Date.now(),

@@ -67,6 +67,7 @@ export interface SaveGame {
   historicEvents?: HistoricalEvent[];
   territory?: TerritoryState;
   civilizationTimers?: CivilizationTimers;
+  housingUpgradeTimer?: number;
 }
 
 export function serializeGame(state: GameState): SaveGame {
@@ -95,7 +96,8 @@ export function serializeGame(state: GameState): SaveGame {
     migrationGroups: state.migrationGroups,
     historicEvents: state.historicEvents,
     territory: state.territory,
-    civilizationTimers: state.civilizationTimers
+    civilizationTimers: state.civilizationTimers,
+    housingUpgradeTimer: state.housingUpgradeTimer
   };
 }
 
