@@ -17,12 +17,25 @@ export const TERRITORY = {
 } as const;
 
 export const COLONIZATION = {
-  baseFoodCost: 24,
-  baseWoodCost: 16,
-  settlers: 4,
-  minCapitalPopulation: 14,
-  minDistance: 18,
-  maxDistance: 44
+  baseFoodCost: 18,
+  baseWoodCost: 12,
+  settlers: 5,
+  minCapitalPopulation: 18,
+  minDistance: 22,
+  maxDistance: 96,
+  baseSettlementTarget: 5,
+  settlementsPer128Tiles: 2,
+  expansionistBonusSettlements: 3,
+  maxActiveGroupsPerCivilization: 2,
+  searchAttemptsPerOrigin: 72,
+  siteScoreThreshold: 12
+} as const;
+
+export const ROAD_NETWORK = {
+  maxLinksPerStrategyTick: 4,
+  maxPathNodes: 24_000,
+  woodCostPerNewTile: 0.04,
+  maxExtraLinkDistance: 82
 } as const;
 
 export const MACRO_ECONOMY = {

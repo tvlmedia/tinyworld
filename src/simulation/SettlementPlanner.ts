@@ -13,9 +13,8 @@ export function updateSettlementPlanner(state: GameState, dt: number): void {
   if (state.plannerTimer > 0) return;
   state.plannerTimer = 9;
 
-  if (state.buildings.some((building) => building.status !== "complete")) return;
-
   const settlement = chooseSettlementForProject(state);
+  if (!settlement && state.buildings.some((building) => building.status !== "complete")) return;
   const next = chooseNextBuilding(state, settlement);
   if (!next) return;
   const spot = findBuildingSpot(state, next, settlement ? { x: settlement.centerX, y: settlement.centerY } : undefined);
@@ -71,7 +70,7 @@ export function findBuildingSpot(state: GameState, type: BuildingType, center = 
         y: Math.floor(center.y + Math.sin(angle) * (radius + wobble) - definition.height / 2)
       });
     }
-    candidates.sort((a, b) => scoreSpot(state, a, type) - scoreSpot(state, b, type));
+    candidates.sort((a, b) => scoreSpot(state, a, type, center) - scoreSpot(state, b, type, center));
     for (const spot of candidates) {
       if (isValidBuildingSpot(state, spot.x, spot.y, type)) return spot;
     }
@@ -81,11 +80,24 @@ export function findBuildingSpot(state: GameState, type: BuildingType, center = 
 
 function chooseSettlementForProject(state: GameState): Settlement | undefined {
   if (state.settlements.length === 0) return undefined;
-  return [...state.settlements].sort((a, b) => {
-    const priorityDelta = priorityWeight(b) - priorityWeight(a);
-    if (priorityDelta !== 0) return priorityDelta;
-    return b.population - a.population;
-  })[0];
+  return state.settlements
+    .filter((settlement) => !state.buildings.some((building) => building.settlementId === settlement.id && building.status !== "complete"))
+    .filter((settlement) => chooseNextBuilding(state, settlement) !== undefined)
+    .sort((a, b) => {
+      const priorityDelta = projectWeight(state, b) - projectWeight(state, a);
+      if (priorityDelta !== 0) return priorityDelta;
+      return b.population - a.population;
+    })[0];
+}
+
+function projectWeight(state: GameState, settlement: Settlement): number {
+  const next = chooseNextBuilding(state, settlement);
+  let weight = priorityWeight(settlement);
+  if (state.civilizations.some((civilization) => civilization.capitalSettlementId === settlement.id)) weight += 1.5;
+  if (next === "mine" || next === "workshop" || next === "market" || next === "school") weight += 3;
+  if (next === "watchtower") weight += 2;
+  if (settlement.tier === "camp" && (next === "house" || next === "farm")) weight += 1;
+  return weight;
 }
 
 function priorityWeight(settlement: Settlement): number {
@@ -113,8 +125,8 @@ export function isValidBuildingSpot(state: GameState, x: number, y: number, type
   return true;
 }
 
-function scoreSpot(state: GameState, spot: Point, type: BuildingType): number {
-  const centerDistance = Math.hypot(spot.x - state.world.spawn.x, spot.y - state.world.spawn.y);
+function scoreSpot(state: GameState, spot: Point, type: BuildingType, center: Point): number {
+  const centerDistance = Math.hypot(spot.x - center.x, spot.y - center.y);
   const roadBonus = nearbyRoadCount(state, spot) * -3;
   const farmFertility = type === "farm" ? -averageFertility(state, spot, BUILDING_DEFINITIONS[type].width, BUILDING_DEFINITIONS[type].height) * 16 : 0;
   const mineRocks = type === "mine" ? nearbyRockCount(state, spot) * -5 : 0;

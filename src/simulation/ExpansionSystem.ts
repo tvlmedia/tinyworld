@@ -1,6 +1,6 @@
 import { assignJobByIndex } from "../ai/Jobs";
 import { GameState, worldYear, createBuildingAt } from "../app/GameState";
-import { COLONIZATION } from "../config/balanceConfig";
+import { COLONIZATION, ROAD_NETWORK } from "../config/balanceConfig";
 import { SETTLEMENT_PREFIXES, SETTLEMENT_SUFFIXES } from "../config/civilizationConfig";
 import { SETTLEMENT_TIER_LABELS, SETTLEMENT_TIER_RULES } from "../config/settlementConfig";
 import { Civilization, ColonistGroup, Settlement, SettlementTier } from "../entities/Civilization";
@@ -23,6 +23,7 @@ export function updateExpansion(state: GameState, dt: number): void {
   state.civilizationTimers.civilizationStrategy -= dt;
   if (state.civilizationTimers.civilizationStrategy > 0) return;
   state.civilizationTimers.civilizationStrategy = 72;
+  maintainRoadNetworks(state);
   maybePlanColonization(state);
   maybeCreateMigration(state);
 }
@@ -47,7 +48,7 @@ export function scoreExpansionLocation(state: GameState, civilization: Civilizat
   const nearestExisting = nearestSettlementDistance(state, point);
   if (nearestExisting < COLONIZATION.minDistance) return -Infinity;
   const distance = Math.hypot(point.x - origin.centerX, point.y - origin.centerY);
-  if (distance > COLONIZATION.maxDistance) return -Infinity;
+  if (distance > maxColonizationDistance(state)) return -Infinity;
 
   const fertility = nearbyAverage(state, point, 5, (candidate) => candidate.fertility);
   const wood = nearbyCount(state, point, 7, (candidate) => candidate.type === "forest" && candidate.resourceAmount > 0);
@@ -77,28 +78,37 @@ export function scoreExpansionLocation(state: GameState, civilization: Civilizat
 }
 
 function maybePlanColonization(state: GameState): void {
-  if (state.colonistGroups.some((group) => group.state === "traveling" || group.state === "preparing")) return;
+  let plannedThisTick = 0;
   for (const civilization of state.civilizations) {
-    const capital = state.settlements.find((settlement) => settlement.id === civilization.capitalSettlementId);
-    if (!capital) continue;
-    const targetSettlementCount = civilization.traits.includes("expansionist") ? 4 : 3;
+    if (civilization.population < COLONIZATION.minCapitalPopulation) continue;
+    const activeGroups = state.colonistGroups.filter(
+      (group) => group.civilizationId === civilization.id && (group.state === "traveling" || group.state === "preparing")
+    ).length;
+    const maxActiveGroups = COLONIZATION.maxActiveGroupsPerCivilization + (state.world.width >= 192 ? 1 : 0);
+    if (activeGroups >= maxActiveGroups) continue;
+    const targetSettlementCount = targetSettlementCountFor(state, civilization);
+    const settlements = state.settlements.filter((settlement) => settlement.civilizationId === civilization.id);
+    const origin = chooseColonizationOrigin(state, civilization);
+    if (!origin) continue;
     const pressure =
-      capital.population > COLONIZATION.minCapitalPopulation ||
-      capital.housingCapacity < capital.population + 4 ||
-      capital.foodSecurity < 48 ||
+      civilization.population > civilization.settlementIds.length * 16 ||
+      settlements.some((settlement) => settlement.population > 28 && settlement.housingCapacity < settlement.population + 5) ||
+      settlements.some((settlement) => settlement.population > 24 && settlement.foodSecurity < 50) ||
       civilization.traits.includes("expansionist");
     if (!pressure || civilization.settlementIds.length >= targetSettlementCount) continue;
-    if (state.resources.food < COLONIZATION.baseFoodCost || state.resources.wood < COLONIZATION.baseWoodCost) continue;
-    const site = findExpansionSite(state, civilization, capital);
+    const foodReserve = Math.max(18, civilization.population * 1.2);
+    const woodReserve = 22;
+    if (state.resources.food < COLONIZATION.baseFoodCost + foodReserve || state.resources.wood < COLONIZATION.baseWoodCost + woodReserve) continue;
+    const site = findExpansionSite(state, civilization, origin);
     if (!site) continue;
     state.resources.food -= COLONIZATION.baseFoodCost;
     state.resources.wood -= COLONIZATION.baseWoodCost;
     state.colonistGroups.push({
       id: state.ids.next("colonists"),
       civilizationId: civilization.id,
-      originSettlementId: capital.id,
-      x: capital.centerX,
-      y: capital.centerY,
+      originSettlementId: origin.id,
+      x: origin.centerX,
+      y: origin.centerY,
       targetX: site.x,
       targetY: site.y,
       settlers: COLONIZATION.settlers,
@@ -106,13 +116,14 @@ function maybePlanColonization(state: GameState): void {
       targetName: uniqueSettlementName(state),
       state: "traveling"
     });
-    addHistoricalEvent(state, "colonization", `${civilization.name} stuurde kolonisten uit vanuit ${capital.name}.`, {
+    addHistoricalEvent(state, "colonization", `${civilization.name} stuurde kolonisten uit vanuit ${origin.name}.`, {
       civilizationId: civilization.id,
-      settlementId: capital.id,
-      x: capital.centerX,
-      y: capital.centerY
+      settlementId: origin.id,
+      x: origin.centerX,
+      y: origin.centerY
     });
-    return;
+    plannedThisTick += 1;
+    if (plannedThisTick >= 3) return;
   }
 }
 
@@ -196,12 +207,11 @@ function foundSettlement(state: GameState, group: ColonistGroup): void {
     foodSecurity: 46,
     buildingIds: [campfire.id, storage.id],
     residentIds,
-    connectedSettlementIds: [origin.id],
+    connectedSettlementIds: [],
     localPriorities: ["housing", "food", "wood"],
     stockpile: { food: group.resources.food, wood: group.resources.wood, stone: 0, metal: 0, tools: 0, wealth: 0, research: 0 },
     nextProject: "meer woningen"
   };
-  origin.connectedSettlementIds = Array.from(new Set([...origin.connectedSettlementIds, settlement.id]));
   civilization.settlementIds = Array.from(new Set([...civilization.settlementIds, settlement.id]));
   state.settlements.push(settlement);
   connectSettlementsWithRoad(state, origin, settlement);
@@ -250,9 +260,9 @@ export function evaluateSettlementTier(state: GameState, settlement: Settlement)
 function findExpansionSite(state: GameState, civilization: Civilization, origin: Settlement): Point | undefined {
   let best: Point | undefined;
   let bestScore = -Infinity;
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < COLONIZATION.searchAttemptsPerOrigin; attempt += 1) {
     const angle = state.rng.float(0, Math.PI * 2);
-    const radius = state.rng.float(COLONIZATION.minDistance, COLONIZATION.maxDistance);
+    const radius = state.rng.float(COLONIZATION.minDistance, maxColonizationDistance(state));
     const point = {
       x: Math.floor(origin.centerX + Math.cos(angle) * radius),
       y: Math.floor(origin.centerY + Math.sin(angle) * radius)
@@ -263,21 +273,133 @@ function findExpansionSite(state: GameState, civilization: Civilization, origin:
       bestScore = score;
     }
   }
-  return bestScore > 18 ? best : undefined;
+  return bestScore > COLONIZATION.siteScoreThreshold ? best : undefined;
 }
 
-function connectSettlementsWithRoad(state: GameState, a: Settlement, b: Settlement): void {
-  const result = state.pathfinder.findPath(state.world, { x: a.centerX, y: a.centerY }, { x: b.centerX, y: b.centerY }, { maxNodes: 5200 });
+function targetSettlementCountFor(state: GameState, civilization: Civilization): number {
+  const sizeBonus = Math.floor(state.world.width / 128) * COLONIZATION.settlementsPer128Tiles;
+  const traitBonus = civilization.traits.includes("expansionist") ? COLONIZATION.expansionistBonusSettlements : 0;
+  return COLONIZATION.baseSettlementTarget + sizeBonus + traitBonus;
+}
+
+function chooseColonizationOrigin(state: GameState, civilization: Civilization): Settlement | undefined {
+  return state.settlements
+    .filter((settlement) => settlement.civilizationId === civilization.id)
+    .filter((settlement) => settlement.population >= COLONIZATION.minCapitalPopulation)
+    .sort((a, b) => colonizationOriginScore(b) - colonizationOriginScore(a))[0];
+}
+
+function colonizationOriginScore(settlement: Settlement): number {
+  const housingPressure = Math.max(0, settlement.population + 5 - settlement.housingCapacity) * 1.4;
+  const foodPressure = Math.max(0, 54 - settlement.foodSecurity) * 0.4;
+  const maturity = tierRank(settlement.tier) * 8 + settlement.population * 0.25;
+  const connectedPenalty = settlement.connectedSettlementIds.length * 2;
+  return maturity + housingPressure + foodPressure - connectedPenalty;
+}
+
+function maxColonizationDistance(state: GameState): number {
+  return Math.min(COLONIZATION.maxDistance, Math.max(COLONIZATION.minDistance + 8, Math.floor(state.world.width * 0.42)));
+}
+
+export function connectSettlementsWithRoad(state: GameState, a: Settlement, b: Settlement): number {
+  if (a.id === b.id || a.civilizationId !== b.civilizationId || a.connectedSettlementIds.includes(b.id) || b.connectedSettlementIds.includes(a.id)) return 0;
+  const start = roadAnchorForSettlement(state, a);
+  const end = roadAnchorForSettlement(state, b);
+  if (!start || !end) return 0;
+  const result = state.pathfinder.findPath(state.world, start, end, { maxNodes: ROAD_NETWORK.maxPathNodes });
+  if (result.path.length === 0) return 0;
+  const buildable = result.path.filter((point) => {
+    const tile = getTile(state.world, point.x, point.y);
+    return tile && !tile.occupiedByBuildingId && isWalkableTile(tile) && tile.type !== "road";
+  });
+  const woodCost = Math.ceil(buildable.length * ROAD_NETWORK.woodCostPerNewTile);
+  if (woodCost > 0 && state.resources.wood < woodCost) return 0;
+  state.resources.wood = Math.max(0, state.resources.wood - woodCost);
+
+  let built = 0;
   for (const point of result.path) {
     const tile = getTile(state.world, point.x, point.y);
     if (!tile || tile.occupiedByBuildingId || !isWalkableTile(tile)) continue;
     if (tile.type === "grass" || tile.type === "sand" || tile.type === "forest" || tile.type === "farmland" || tile.type === "burned") {
       tile.type = "road";
       tile.resourceAmount = 0;
+      built += 1;
     }
   }
+  a.connectedSettlementIds = Array.from(new Set([...a.connectedSettlementIds, b.id]));
+  b.connectedSettlementIds = Array.from(new Set([...b.connectedSettlementIds, a.id]));
   state.world.version += 1;
   state.pathfinder.clear();
+  return built;
+}
+
+function roadAnchorForSettlement(state: GameState, settlement: Settlement): Point | undefined {
+  for (let radius = 1; radius <= 5; radius += 1) {
+    let best: Point | undefined;
+    let bestScore = Infinity;
+    for (let y = settlement.centerY - radius; y <= settlement.centerY + radius; y += 1) {
+      for (let x = settlement.centerX - radius; x <= settlement.centerX + radius; x += 1) {
+        const tile = getTile(state.world, x, y);
+        if (!tile || tile.occupiedByBuildingId || !isWalkableTile(tile)) continue;
+        const roadBias = tile.type === "road" ? -8 : 0;
+        const score = Math.hypot(x - settlement.centerX, y - settlement.centerY) + roadBias;
+        if (score < bestScore) {
+          best = { x, y };
+          bestScore = score;
+        }
+      }
+    }
+    if (best) return best;
+  }
+  return undefined;
+}
+
+function nearestConnectedSettlement(settlements: Settlement[], settlement: Settlement, capital: Settlement): Settlement | undefined {
+  const connected = settlements.filter((candidate) => candidate.id !== settlement.id && (candidate.id === capital.id || candidate.connectedSettlementIds.length > 0));
+  return (connected.length > 0 ? connected : settlements.filter((candidate) => candidate.id !== settlement.id)).sort(
+    (a, b) =>
+      Math.hypot(a.centerX - settlement.centerX, a.centerY - settlement.centerY) -
+      Math.hypot(b.centerX - settlement.centerX, b.centerY - settlement.centerY)
+  )[0];
+}
+
+function closestUnconnectedPair(settlements: Settlement[]): { a: Settlement; b: Settlement; distance: number } | undefined {
+  let best: { a: Settlement; b: Settlement; distance: number } | undefined;
+  for (let i = 0; i < settlements.length; i += 1) {
+    for (let j = i + 1; j < settlements.length; j += 1) {
+      const a = settlements[i];
+      const b = settlements[j];
+      if (a.connectedSettlementIds.includes(b.id) || b.connectedSettlementIds.includes(a.id)) continue;
+      const d = Math.hypot(a.centerX - b.centerX, a.centerY - b.centerY);
+      if (!best || d < best.distance) best = { a, b, distance: d };
+    }
+  }
+  return best;
+}
+
+export function maintainRoadNetworks(state: GameState): number {
+  let linksBuilt = 0;
+  for (const civilization of state.civilizations) {
+    const settlements = state.settlements.filter((settlement) => settlement.civilizationId === civilization.id);
+    if (settlements.length < 2) continue;
+    const capital = settlements.find((settlement) => settlement.id === civilization.capitalSettlementId) ?? settlements[0];
+    const disconnected = settlements
+      .filter((settlement) => settlement.id !== capital.id)
+      .filter((settlement) => !settlement.connectedSettlementIds.some((id) => settlements.some((other) => other.id === id)));
+    for (const settlement of disconnected) {
+      const target = nearestConnectedSettlement(settlements, settlement, capital);
+      if (!target) continue;
+      if (connectSettlementsWithRoad(state, settlement, target) > 0) linksBuilt += 1;
+      if (linksBuilt >= ROAD_NETWORK.maxLinksPerStrategyTick) return linksBuilt;
+    }
+
+    const extraPair = closestUnconnectedPair(settlements);
+    if (extraPair && extraPair.distance <= ROAD_NETWORK.maxExtraLinkDistance && connectSettlementsWithRoad(state, extraPair.a, extraPair.b) > 0) {
+      linksBuilt += 1;
+      if (linksBuilt >= ROAD_NETWORK.maxLinksPerStrategyTick) return linksBuilt;
+    }
+  }
+  return linksBuilt;
 }
 
 function maybeCreateMigration(state: GameState): void {
