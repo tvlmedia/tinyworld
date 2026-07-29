@@ -15,6 +15,10 @@ export const WARFARE = {
   exhaustionPerDay: 0.45,
   peaceExhaustionThreshold: 82,
   minimumWarDays: 4,
-  raidFireChance: 0.35
+  raidFireChance: 0.35,
+  siegeBaseRate: 0.7,
+  siegeBlockadePerSecond: 0.1,
+  siegeAssaultThreshold: 58,
+  siegeBreachThreshold: 84,
+  siegeCaptureThreshold: 100
 } as const;
-

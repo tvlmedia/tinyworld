@@ -60,9 +60,15 @@ export type HistoricalEventType =
   | "goldenAge"
   | "famine"
   | "tradeRoute"
-  | "colonization";
+  | "colonization"
+  | "castleUpgraded"
+  | "fortificationBuilt"
+  | "siegeStarted"
+  | "wallBreached";
 
 export type ArmyState = "mustering" | "moving" | "defending" | "raiding" | "besieging" | "retreating" | "disbanding";
+
+export type ArmyUnitType = "spearman" | "swordsman" | "archer" | "shieldBearer" | "rider";
 
 export type WarGoal = "border" | "captureSettlement" | "resources" | "raid" | "defendAlly" | "independence";
 
@@ -155,6 +161,7 @@ export interface War {
   defenderCivilizationIds: string[];
   startedYear: number;
   goal: WarGoal;
+  occupationPolicy: "annex" | "plunder";
   targetSettlementId?: string;
   attackerWarScore: number;
   defenderWarScore: number;
@@ -168,6 +175,7 @@ export interface Army {
   id: string;
   civilizationId: string;
   soldierIds: string[];
+  unitComposition: Partial<Record<ArmyUnitType, number>>;
   x: number;
   y: number;
   targetX: number;
@@ -178,6 +186,8 @@ export interface Army {
   state: ArmyState;
   targetSettlementId?: string;
   warId?: string;
+  siegeProgress?: number;
+  siegePhase?: "camp" | "encircling" | "assaulting" | "breached";
 }
 
 export interface TradeRoute {
@@ -247,4 +257,5 @@ export interface CivilizationTimers {
   war: number;
   trade: number;
   history: number;
+  development: number;
 }

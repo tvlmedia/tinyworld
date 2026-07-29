@@ -36,7 +36,7 @@ export const SETTLEMENT_TIER_RULES: SettlementTierRule[] = [
     minFoodSecurity: 62,
     minDefense: 12,
     requiredBuildings: ["market", "storage", "farm"],
-    requiresConnection: true
+    requiresConnection: false
   },
   {
     tier: "village",
@@ -71,7 +71,7 @@ export const SETTLEMENT_TIER_LABELS: Record<SettlementTier, string> = {
   camp: "kamp",
   hamlet: "gehucht",
   village: "dorp",
-  town: "stadje",
+  town: "versterkt dorp",
   city: "stad",
   capital: "hoofdstad"
 };

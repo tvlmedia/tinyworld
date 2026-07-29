@@ -17,7 +17,11 @@ export type BuildingType =
   | "harbor"
   | "market"
   | "school"
-  | "monument";
+  | "monument"
+  | "barracks"
+  | "castle"
+  | "wall"
+  | "gate";
 
 export type BuildingStatus = "planned" | "building" | "complete";
 
@@ -50,6 +54,7 @@ export interface Building {
   storage: ResourceStore;
   productionTimer: number;
   upgradeLevel?: number;
+  upgradeTargetLevel?: number;
   civilizationId?: string;
   settlementId?: string;
   visualEra?: string;
@@ -188,6 +193,39 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     height: 3,
     costs: { wood: 12, stone: 18 },
     buildWorkRequired: 68
+  },
+  barracks: {
+    type: "barracks",
+    label: "Kazerne",
+    width: 5,
+    height: 3,
+    costs: { wood: 34, stone: 18, food: 10 },
+    buildWorkRequired: 72
+  },
+  castle: {
+    type: "castle",
+    label: "Centraal fort",
+    width: 8,
+    height: 7,
+    costs: { wood: 72, stone: 48, food: 18 },
+    buildWorkRequired: 150,
+    storageCapacity: 180
+  },
+  wall: {
+    type: "wall",
+    label: "Palissade",
+    width: 1,
+    height: 1,
+    costs: { wood: 3 },
+    buildWorkRequired: 5
+  },
+  gate: {
+    type: "gate",
+    label: "Stadspoort",
+    width: 2,
+    height: 1,
+    costs: { wood: 8, stone: 2 },
+    buildWorkRequired: 12
   }
 };
 

@@ -122,6 +122,14 @@ function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): strin
       return "cultuur";
     case "watchtower":
       return "veiligheid";
+    case "barracks":
+      return "getrainde soldaten en garnizoen";
+    case "castle":
+      return "bestuur, opslag en verdediging";
+    case "wall":
+      return "verdedigingsring";
+    case "gate":
+      return "bewaakte toegang";
     default:
       return "-";
   }

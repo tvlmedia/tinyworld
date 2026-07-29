@@ -1,4 +1,5 @@
 import { GameState, createBuildingAt } from "../app/GameState";
+import { developmentStageFor, developmentStageRank } from "../config/developmentConfig";
 import { BUILDING_DEFINITIONS, BuildingType } from "../entities/Building";
 import { Settlement } from "../entities/Civilization";
 import { Point, rectsOverlap } from "../utils/MathUtils";
@@ -42,6 +43,13 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   const population = settlement?.population ?? state.villagers.length;
   const desiredFarms = Math.min(8, Math.max(1, Math.ceil(population / 10)));
   const unlocked = (type: BuildingType) => isBuildingUnlocked(state, settlement?.civilizationId, type);
+  const civilization = state.civilizations.find((item) => item.id === settlement?.civilizationId);
+  const stage = civilization
+    ? developmentStageFor(
+        civilization,
+        state.settlements.filter((item) => item.civilizationId === civilization.id)
+      ).id
+    : "camp";
 
   if (completed("mine") < 1 && !planned("mine")) return "mine";
   if (population >= 10 && completed("market") >= 1 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
@@ -68,6 +76,15 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   if (population >= 24 && unlocked("reservoir") && completed("reservoir") < 1 && !planned("reservoir")) return "reservoir";
   if (population >= 35 && unlocked("firestation") && completed("firestation") < Math.max(1, Math.floor(population / 55)) && !planned("firestation")) {
     return "firestation";
+  }
+  if (
+    population >= 42 &&
+    developmentStageRank(stage) >= developmentStageRank("city") &&
+    unlocked("barracks") &&
+    completed("barracks") < Math.max(1, Math.floor(population / 90)) &&
+    !planned("barracks")
+  ) {
+    return "barracks";
   }
   const desiredForestry = population >= 42 ? 2 : 1;
   const needsScaledWood =
@@ -106,7 +123,15 @@ export function findBuildingSpot(state: GameState, type: BuildingType, center = 
 function chooseSettlementForProject(state: GameState): Settlement | undefined {
   if (state.settlements.length === 0) return undefined;
   return state.settlements
-    .filter((settlement) => !state.buildings.some((building) => building.settlementId === settlement.id && building.status !== "complete"))
+    .filter((settlement) => {
+      const projects = state.buildings.filter(
+        (building) => building.settlementId === settlement.id && building.status !== "complete"
+      );
+      const urgentHousing =
+        settlement.housingCapacity < settlement.population + 2 &&
+        !projects.some((building) => building.type === "house");
+      return projects.length === 0 || urgentHousing;
+    })
     .filter((settlement) => chooseNextBuilding(state, settlement) !== undefined)
     .sort((a, b) => {
       const priorityDelta = projectWeight(state, b) - projectWeight(state, a);

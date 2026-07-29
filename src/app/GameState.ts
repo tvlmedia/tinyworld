@@ -268,7 +268,8 @@ export function defaultCivilizationTimers(): CivilizationTimers {
     territory: 0,
     war: CIVILIZATION_UPDATE_INTERVALS.war,
     trade: CIVILIZATION_UPDATE_INTERVALS.trade,
-    history: CIVILIZATION_UPDATE_INTERVALS.history
+    history: CIVILIZATION_UPDATE_INTERVALS.history,
+    development: CIVILIZATION_UPDATE_INTERVALS.development
   };
 }
 
@@ -393,7 +394,7 @@ export function occupyBuildingTiles(world: World, building: Building): void {
   for (let y = building.y; y < building.y + building.height; y += 1) {
     for (let x = building.x; x < building.x + building.width; x += 1) {
       const tile = getTile(world, x, y);
-      if (tile) tile.occupiedByBuildingId = building.id;
+      if (tile && building.type !== "gate") tile.occupiedByBuildingId = building.id;
     }
   }
   world.version += 1;

@@ -2,9 +2,19 @@
 
 Screenshot placeholder: voeg hier na publicatie een echte screenshot toe.
 
-Tiny World is een volledig lokale browsergame waarin een klein procedureel eiland zelfstandig tot leven komt. Vijf bewoners starten bij een kampvuur, zoeken voedsel, hakken bomen, dragen grondstoffen naar de opslag en bouwen stap voor stap een dorp.
+Tiny World is een volledig lokale browsergame waarin een procedurele wereld zelfstandig tot leven komt. Vijf bewoners starten bij een kampvuur, verdienen grondstoffen en kunnen via dorpen, steden en koninkrijken uitgroeien tot een rijk.
 
-De game gebruikt TypeScript, Vite, HTML5 Canvas 2D, CSS, Vitest en localStorage. Er is geen React, Vue, Phaser, Three.js, backend, database, AI of externe asset nodig om de game te spelen.
+De game gebruikt TypeScript, Vite, HTML5 Canvas 2D, CSS, Vitest en localStorage. Er is geen machine learning, LLM, externe API, backend of database nodig om de game te spelen.
+
+## Simulatiemodel
+
+Alle beslissingen zijn lokaal en rule-based:
+
+- Bewoners gebruiken finite state machines en utility scoring voor behoeften, werk en noodhulp.
+- Beschavingen gebruiken geconfigureerde drempels en strategische scores voor groei, onderzoek, handel, kolonisatie en oorlog.
+- Oorlogen volgen vaste toestanden voor mobilisatie, mars, belegeringskamp, omsingeling, aanval, bres en inname.
+- Alle variatie komt uit deterministische randomness met de world seed.
+- Gebouwen, technologie, ontwikkelingsfasen en balanswaarden staan in TypeScript-configuratiebestanden.
 
 ## Features
 
@@ -12,6 +22,9 @@ De game gebruikt TypeScript, Vite, HTML5 Canvas 2D, CSS, Vitest en localStorage.
 - Bewoners met eenvoudige finite state machine voor eten, hout verzamelen, bouwen, slapen, vluchten en rondwandelen.
 - A* pathfinding met wegkosten, cache en blokkades voor water, bergen en gebouwen.
 - Automatische dorpsplanner voor huizen, boerderijen, opslag, houthakkershut, werkplaats en uitkijktoren.
+- Ontwikkelingsfasen van kamp tot rijk, met een persistent kasteel dat zichtbaar wordt uitgebreid.
+- Vormvolgende palissades en stenen muren, poorten, kazernes en technologie-afhankelijke legers.
+- Diplomatie, bondgenootschappen, coalitieoorlogen, meerfasige belegeringen, annexatie en plundering.
 - Dag- en nachtcyclus met huislichtjes en lagere nachtactiviteit.
 - Weer: helder, bewolkt, regen, onweer en droogte.
 - Vuur met intensiteit, brandstof, rook, verspreiding en blussen.
@@ -59,7 +72,7 @@ Deze repo bevat `.github/workflows/deploy.yml`. Zet GitHub Pages op "GitHub Acti
 - Klik of tik: bewoner, gebouw of tile selecteren.
 - `Space`: pauze.
 - `+` / `-`: in- en uitzoomen.
-- `1`, `2`, `4`, `8`: snelheid instellen.
+- `1`, `2`, `4`, `8`: snelheid instellen; 16x en 32x zijn beschikbaar in de toolbar.
 - WASD of pijltjestoetsen: camera bewegen.
 - `0`: hele wereld in beeld.
 - `F`: focus op het dorp.

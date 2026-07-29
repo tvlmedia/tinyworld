@@ -12,7 +12,8 @@ const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, string>> = {
   market: "markets",
   school: "writing",
   watchtower: "fortification",
-  monument: "writing"
+  monument: "writing",
+  barracks: "fortification"
 };
 
 export function updateTechnology(state: GameState, dt: number): void {

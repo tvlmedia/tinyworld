@@ -2,6 +2,7 @@ import { updateVillager } from "../ai/VillagerBrain";
 import { refreshBuildingEffects, GameState } from "../app/GameState";
 import { updateCivilization } from "./CivilizationSystem";
 import { updateDiplomacyAndTrade } from "./DiplomacySystem";
+import { updateDevelopment } from "./DevelopmentSystem";
 import { updateExpansion } from "./ExpansionSystem";
 import { updateFire } from "./FireSystem";
 import { updateEmergencyResponse } from "./EmergencyResponseSystem";
@@ -35,6 +36,7 @@ export class Simulation {
     updateCivilization(state, dt);
     updateExpansion(state, dt);
     updateTechnology(state, dt);
+    updateDevelopment(state, dt);
     updateDiplomacyAndTrade(state, dt);
     updateWarfare(state, dt);
     updateStability(state, dt);

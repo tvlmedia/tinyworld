@@ -1,6 +1,6 @@
 import { GameState, worldYear } from "../app/GameState";
 import { WARFARE } from "../config/warfareConfig";
-import { Army, Civilization, Settlement, War, WarGoal } from "../entities/Civilization";
+import { Army, ArmyUnitType, Civilization, Settlement, War, WarGoal } from "../entities/Civilization";
 import { clamp, distance } from "../utils/MathUtils";
 import { forceTerritoryRefresh } from "./CivilizationSystem";
 import { getRelation } from "./DiplomacySystem";
@@ -46,7 +46,16 @@ export function mobilizeArmy(state: GameState, civilization: Civilization, targe
   const origin = state.settlements.find((settlement) => settlement.id === civilization.capitalSettlementId) ?? state.settlements.find((settlement) => settlement.civilizationId === civilization.id);
   if (!origin) return undefined;
   const existingMobilized = state.armies.filter((army) => army.civilizationId === civilization.id && army.state !== "disbanding").reduce((sum, army) => sum + army.soldierIds.length, 0);
-  const populationCap = Math.max(WARFARE.minimumArmySize, Math.floor(civilization.population * WARFARE.musterPopulationShare));
+  const barracks = state.buildings.filter(
+    (building) =>
+      building.civilizationId === civilization.id &&
+      building.type === "barracks" &&
+      building.status === "complete"
+  ).length;
+  const populationCap = Math.max(
+    WARFARE.minimumArmySize,
+    Math.floor(civilization.population * WARFARE.musterPopulationShare) + barracks * 2
+  );
   const targetSize = Math.max(0, populationCap - existingMobilized);
   if (targetSize < WARFARE.minimumArmySize && mode !== "defending") return undefined;
 
@@ -54,16 +63,18 @@ export function mobilizeArmy(state: GameState, civilization: Civilization, targe
   const soldierIds = availableVillagers.slice(0, targetSize).map((villager) => villager.id);
   while (soldierIds.length < targetSize) soldierIds.push(state.ids.next("levy"));
   if (soldierIds.length === 0) return undefined;
+  const unitComposition = composeArmy(civilization, soldierIds.length);
 
   const army: Army = {
     id: state.ids.next("army"),
     civilizationId: civilization.id,
     soldierIds,
+    unitComposition,
     x: origin.centerX,
     y: origin.centerY,
     targetX: target.centerX,
     targetY: target.centerY,
-    strength: soldierIds.length * WARFARE.strengthPerSoldier + origin.defense * 0.25,
+    strength: (compositionStrength(unitComposition) + origin.defense * 0.25) * (1 + barracks * 0.12),
     morale: clamp(WARFARE.moraleBase + civilization.warSupport * 0.18 + (mode === "defending" ? WARFARE.defensiveMoraleBonus : 0), 20, 100),
     supplies: WARFARE.baseSupply,
     state: mode,
@@ -85,35 +96,57 @@ export function declareWar(state: GameState, attacker: Civilization, defender: C
   if (hasActiveWarBetween(state, attacker.id, defender.id)) return undefined;
   const target = chooseWarTarget(state, attacker, defender);
   if (!target) return undefined;
+  const defenderAllies = alliedCivilizations(state, defender)
+    .filter((ally) => ally.id !== attacker.id)
+    .slice(0, 2);
+  const defenderSideIds = new Set([defender.id, ...defenderAllies.map((ally) => ally.id)]);
+  const attackerAllies = alliedCivilizations(state, attacker)
+    .filter((ally) => !defenderSideIds.has(ally.id) && ally.warSupport >= 46)
+    .slice(0, 2);
+  const attackerSide = [attacker, ...attackerAllies];
+  const defenderSide = [defender, ...defenderAllies];
   const war: War = {
     id: state.ids.next("war"),
-    attackerCivilizationIds: [attacker.id],
-    defenderCivilizationIds: [defender.id],
+    attackerCivilizationIds: attackerSide.map((civilization) => civilization.id),
+    defenderCivilizationIds: defenderSide.map((civilization) => civilization.id),
     startedYear: worldYear(state),
     goal,
+    occupationPolicy: chooseOccupationPolicy(attacker, goal),
     targetSettlementId: target.id,
     attackerWarScore: 0,
     defenderWarScore: 0,
     casualties: 0,
     occupiedSettlementIds: [],
-    exhaustionByCivilizationId: { [attacker.id]: 0, [defender.id]: 0 },
+    exhaustionByCivilizationId: Object.fromEntries(
+      [...attackerSide, ...defenderSide].map((civilization) => [civilization.id, 0])
+    ),
     active: true
   };
   state.wars.push(war);
-  attacker.activeWarIds.push(war.id);
-  defender.activeWarIds.push(war.id);
-  attacker.warSupport = clamp(attacker.warSupport + 8, 0, 100);
-  defender.warSupport = clamp(defender.warSupport + 12, 0, 100);
-  const relation = getRelation(state, attacker.id, defender.id);
-  if (relation) {
-    relation.status = "atWar";
-    relation.opinionAOfB = clamp(relation.opinionAOfB - 30, -100, 100);
-    relation.opinionBOfA = clamp(relation.opinionBOfA - 30, -100, 100);
-    relation.grievances.push({ label: "oorlogsverklaring", value: 25, expiresYear: worldYear(state) + 80 });
+  for (const civilization of attackerSide) {
+    if (!civilization.activeWarIds.includes(war.id)) civilization.activeWarIds.push(war.id);
+    civilization.warSupport = clamp(civilization.warSupport + 8, 0, 100);
   }
-  interruptTradeBetween(state, attacker.id, defender.id);
+  for (const civilization of defenderSide) {
+    if (!civilization.activeWarIds.includes(war.id)) civilization.activeWarIds.push(war.id);
+    civilization.warSupport = clamp(civilization.warSupport + 12, 0, 100);
+  }
+  for (const attackerMember of attackerSide) {
+    for (const defenderMember of defenderSide) {
+      const relation = getRelation(state, attackerMember.id, defenderMember.id);
+      if (relation) {
+        relation.status = "atWar";
+        relation.opinionAOfB = clamp(relation.opinionAOfB - 30, -100, 100);
+        relation.opinionBOfA = clamp(relation.opinionBOfA - 30, -100, 100);
+        relation.grievances.push({ label: "oorlogsverklaring", value: 25, expiresYear: worldYear(state) + 80 });
+      }
+      interruptTradeBetween(state, attackerMember.id, defenderMember.id);
+    }
+  }
   mobilizeArmy(state, attacker, target, war.id, "moving");
   mobilizeArmy(state, defender, target, war.id, "defending");
+  for (const ally of attackerAllies) mobilizeArmy(state, ally, target, war.id, "moving");
+  for (const ally of defenderAllies) mobilizeArmy(state, ally, target, war.id, "defending");
   addHistoricalEvent(state, "warStarted", `${attacker.name} verklaarden oorlog aan ${defender.name} om ${target.name}.`, {
     civilizationId: attacker.id,
     settlementId: target.id,
@@ -189,7 +222,7 @@ function updateArmies(state: GameState, dt: number): void {
     }
     if (army.targetSettlementId && distance(army, { x: army.targetX, y: army.targetY }) <= WARFARE.siegeDistance) {
       army.state = "besieging";
-      resolveSiege(state, army);
+      advanceSiege(state, army, dt);
     }
   }
   cleanupSpentArmies(state);
@@ -214,6 +247,78 @@ function moveArmy(army: Army, dt: number): void {
   army.y += (dy / length) * step;
 }
 
+function advanceSiege(state: GameState, army: Army, dt: number): void {
+  const target = state.settlements.find((settlement) => settlement.id === army.targetSettlementId);
+  if (!target || target.civilizationId === army.civilizationId) {
+    army.state = "disbanding";
+    return;
+  }
+  if (!army.siegePhase) {
+    army.siegePhase = "camp";
+    army.siegeProgress = 0;
+    addHistoricalEvent(state, "siegeStarted", `${armyLabel(state, army)} sloeg een belegeringskamp op voor ${target.name}.`, {
+      civilizationId: army.civilizationId,
+      settlementId: target.id,
+      warId: army.warId,
+      x: target.centerX,
+      y: target.centerY
+    });
+  }
+  const defensivePower = Math.max(12, target.defense + target.population * 0.1);
+  const pressure = effectiveArmyStrength(state, army) / defensivePower;
+  army.siegeProgress = (army.siegeProgress ?? 0) + WARFARE.siegeBaseRate * clamp(pressure, 0.35, 4.5) * dt;
+  target.foodSecurity = clamp(target.foodSecurity - WARFARE.siegeBlockadePerSecond * dt, 0, 100);
+  target.stability = clamp(target.stability - dt * 0.035, 0, 100);
+  army.supplies = clamp(army.supplies - WARFARE.supplyUsePerSecond * dt * 0.8, 0, WARFARE.baseSupply);
+
+  if (army.siegeProgress >= 20 && army.siegePhase === "camp") {
+    army.siegePhase = "encircling";
+    addEvent(state, `${target.name} is omsingeld; voedseltransporten komen tot stilstand.`);
+  }
+  if (army.siegeProgress >= WARFARE.siegeAssaultThreshold && army.siegePhase === "encircling") {
+    army.siegePhase = "assaulting";
+    addEvent(state, `De poorten en muren van ${target.name} worden aangevallen.`);
+  }
+  if (army.siegeProgress >= WARFARE.siegeBreachThreshold && army.siegePhase === "assaulting") {
+    army.siegePhase = "breached";
+    breachFortification(state, target, army);
+  }
+  if (army.supplies <= 0 && army.morale < 34) {
+    army.state = "retreating";
+    army.siegeProgress = 0;
+    army.siegePhase = undefined;
+    const home = state.settlements.find((settlement) => settlement.civilizationId === army.civilizationId);
+    if (home) {
+      army.targetX = home.centerX;
+      army.targetY = home.centerY;
+    }
+    return;
+  }
+  if ((army.siegeProgress ?? 0) >= WARFARE.siegeCaptureThreshold) resolveSiege(state, army);
+}
+
+function breachFortification(state: GameState, target: Settlement, army: Army): void {
+  const fortification = state.buildings.find(
+    (building) =>
+      building.settlementId === target.id &&
+      (building.type === "wall" || building.type === "gate") &&
+      building.status === "complete"
+  );
+  if (fortification) {
+    fortification.status = "planned";
+    fortification.health = fortification.maxHealth;
+    fortification.progress = 0;
+  }
+  target.defense = Math.max(0, target.defense - (fortification?.type === "gate" ? 12 : 8));
+  addHistoricalEvent(state, "wallBreached", `De buitenste verdediging van ${target.name} werd doorbroken.`, {
+    civilizationId: army.civilizationId,
+    settlementId: target.id,
+    warId: army.warId,
+    x: target.centerX,
+    y: target.centerY
+  });
+}
+
 function resolveSiege(state: GameState, army: Army): void {
   const target = state.settlements.find((settlement) => settlement.id === army.targetSettlementId);
   if (!target || target.civilizationId === army.civilizationId) {
@@ -222,7 +327,10 @@ function resolveSiege(state: GameState, army: Army): void {
   }
   const war = army.warId ? state.wars.find((item) => item.id === army.warId) : undefined;
   const defendingArmies = state.armies.filter(
-    (candidate) => candidate.id !== army.id && candidate.civilizationId === target.civilizationId && distance(candidate, settlementPoint(target)) < 5
+    (candidate) =>
+      candidate.id !== army.id &&
+      (war?.defenderCivilizationIds.includes(candidate.civilizationId) ?? candidate.civilizationId === target.civilizationId) &&
+      distance(candidate, settlementPoint(target)) < 5
   );
   for (const defender of defendingArmies) {
     const result = resolveBattle(state, army, defender);
@@ -247,10 +355,35 @@ function resolveSiege(state: GameState, army: Army): void {
   captureSettlement(state, army, target, war);
 }
 
+function alliedCivilizations(state: GameState, civilization: Civilization): Civilization[] {
+  return state.diplomaticRelations
+    .filter(
+      (relation) =>
+        relation.status === "allied" &&
+        (relation.civilizationAId === civilization.id || relation.civilizationBId === civilization.id)
+    )
+    .map((relation) =>
+      state.civilizations.find(
+        (candidate) =>
+          candidate.id ===
+          (relation.civilizationAId === civilization.id ? relation.civilizationBId : relation.civilizationAId)
+      )
+    )
+    .filter((candidate): candidate is Civilization => !!candidate);
+}
+
+function armyLabel(state: GameState, army: Army): string {
+  return state.civilizations.find((civilization) => civilization.id === army.civilizationId)?.name ?? "Een leger";
+}
+
 function captureSettlement(state: GameState, army: Army, target: Settlement, war: War | undefined): void {
   const previousCivilization = state.civilizations.find((civilization) => civilization.id === target.civilizationId);
   const newCivilization = state.civilizations.find((civilization) => civilization.id === army.civilizationId);
   if (!newCivilization || !previousCivilization) return;
+  if (war?.occupationPolicy === "plunder") {
+    plunderSettlement(state, army, target, previousCivilization, newCivilization, war);
+    return;
+  }
   const civilianLosses = Math.min(Math.max(1, Math.round(target.population * state.rng.float(0.03, 0.12))), Math.max(1, target.population));
   removeSettlementPopulation(state, target, civilianLosses);
   target.civilizationId = newCivilization.id;
@@ -292,6 +425,68 @@ function captureSettlement(state: GameState, army: Army, target: Settlement, war
   addEvent(state, `${target.name} is veroverd door ${newCivilization.name}.`);
 }
 
+function plunderSettlement(
+  state: GameState,
+  army: Army,
+  target: Settlement,
+  previousCivilization: Civilization,
+  attacker: Civilization,
+  war: War
+): void {
+  const foodLoot = Math.floor(target.stockpile.food * 0.3);
+  const woodLoot = Math.floor(target.stockpile.wood * 0.25);
+  const stoneLoot = Math.floor(target.stockpile.stone * 0.2);
+  const wealthLoot = Math.floor(target.stockpile.wealth * 0.45);
+  target.stockpile.food = Math.max(0, target.stockpile.food - foodLoot);
+  target.stockpile.wood = Math.max(0, target.stockpile.wood - woodLoot);
+  target.stockpile.stone = Math.max(0, target.stockpile.stone - stoneLoot);
+  target.stockpile.wealth = Math.max(0, target.stockpile.wealth - wealthLoot);
+  attacker.treasury += wealthLoot + foodLoot * 0.15 + woodLoot * 0.2 + stoneLoot * 0.3;
+  target.foodSecurity = clamp(target.foodSecurity - 24, 0, 100);
+  target.stability = clamp(target.stability - 18, 0, 100);
+  const burnable = state.buildings
+    .filter(
+      (building) =>
+        building.settlementId === target.id &&
+        building.status === "complete" &&
+        (building.type === "storage" || building.type === "market" || building.type === "house")
+    )
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const building of burnable.slice(0, Math.min(2, burnable.length))) {
+    if (state.rng.chance(WARFARE.raidFireChance)) igniteTile(state, building.x, building.y, 0.75);
+  }
+  war.attackerWarScore += 18;
+  war.exhaustionByCivilizationId[previousCivilization.id] = clamp(
+    (war.exhaustionByCivilizationId[previousCivilization.id] ?? 0) + 12,
+    0,
+    100
+  );
+  army.state = "retreating";
+  const home = state.settlements.find((settlement) => settlement.civilizationId === army.civilizationId);
+  if (home) {
+    army.targetX = home.centerX;
+    army.targetY = home.centerY;
+  }
+  addHistoricalEvent(
+    state,
+    "settlementCaptured",
+    `${attacker.name} plunderden ${target.name} en trokken zich met voedsel en materialen terug.`,
+    {
+      civilizationId: attacker.id,
+      settlementId: target.id,
+      warId: war.id,
+      x: target.centerX,
+      y: target.centerY
+    }
+  );
+}
+
+function chooseOccupationPolicy(attacker: Civilization, goal: WarGoal): War["occupationPolicy"] {
+  if (goal === "resources" || goal === "raid" || goal === "defendAlly") return "plunder";
+  if (attacker.traits.includes("expansionist") || attacker.government === "empire") return "annex";
+  return "annex";
+}
+
 function registerBattle(state: GameState, a: Army, b: Army, casualties: number, winnerId: string): void {
   const war = a.warId ? state.wars.find((item) => item.id === a.warId) : b.warId ? state.wars.find((item) => item.id === b.warId) : undefined;
   const winner = state.civilizations.find((civilization) => civilization.id === winnerId);
@@ -321,13 +516,16 @@ function signPeace(state: GameState, war: War): void {
     civilization.warSupport = clamp(civilization.warSupport - 18, 0, 100);
   }
   for (const army of state.armies.filter((item) => item.warId === war.id)) army.state = "disbanding";
+  for (const attackerMemberId of war.attackerCivilizationIds) {
+    for (const defenderMemberId of war.defenderCivilizationIds) {
+      const relation = getRelation(state, attackerMemberId, defenderMemberId);
+      if (!relation) continue;
+      relation.status = "hostile";
+      relation.trust = clamp(relation.trust - 18, -100, 100);
+    }
+  }
   const [attackerId] = war.attackerCivilizationIds;
   const [defenderId] = war.defenderCivilizationIds;
-  const relation = getRelation(state, attackerId, defenderId);
-  if (relation) {
-    relation.status = "hostile";
-    relation.trust = clamp(relation.trust - 18, -100, 100);
-  }
   const attacker = state.civilizations.find((item) => item.id === attackerId);
   const defender = state.civilizations.find((item) => item.id === defenderId);
   addHistoricalEvent(state, "peaceSigned", `${attacker?.name ?? "Aanvallers"} en ${defender?.name ?? "verdedigers"} sloten vrede.`, {
@@ -370,8 +568,24 @@ function applyArmyCasualties(state: GameState, army: Army, requestedLosses: numb
     const settlement = state.settlements.find((item) => item.civilizationId === army.civilizationId);
     if (settlement) settlement.abstractPopulation = Math.max(0, settlement.abstractPopulation - abstractLosses);
   }
-  army.strength = Math.max(0, army.soldierIds.length * WARFARE.strengthPerSoldier * (army.supplies > 0 ? 1 : 0.72));
+  army.unitComposition = scaleComposition(army.unitComposition, army.soldierIds.length);
+  army.strength = Math.max(0, compositionStrength(army.unitComposition) * (army.supplies > 0 ? 1 : 0.72));
   return losses;
+}
+
+function scaleComposition(composition: Army["unitComposition"], targetSize: number): Army["unitComposition"] {
+  const entries = (Object.entries(composition) as [ArmyUnitType, number][]).filter(([, count]) => count > 0);
+  const originalSize = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (targetSize <= 0 || originalSize <= 0) return {};
+  const scaled: Army["unitComposition"] = {};
+  let assigned = 0;
+  for (let index = 0; index < entries.length; index += 1) {
+    const [type, count] = entries[index];
+    const amount = index === entries.length - 1 ? targetSize - assigned : Math.floor((count / originalSize) * targetSize);
+    if (amount > 0) scaled[type] = amount;
+    assigned += amount;
+  }
+  return scaled;
 }
 
 function removeSettlementPopulation(state: GameState, settlement: Settlement, losses: number): void {
@@ -438,13 +652,52 @@ function normalizeWarState(state: GameState): void {
     war.casualties = safeNumber(war.casualties);
     war.attackerWarScore = safeNumber(war.attackerWarScore);
     war.defenderWarScore = safeNumber(war.defenderWarScore);
+    war.occupationPolicy ??= war.goal === "resources" || war.goal === "raid" ? "plunder" : "annex";
     war.exhaustionByCivilizationId ??= {};
   }
   for (const army of state.armies) {
+    army.unitComposition ??= { spearman: army.soldierIds.length };
     army.strength = safeNumber(army.strength);
     army.morale = clamp(safeNumber(army.morale), 0, 100);
     army.supplies = clamp(safeNumber(army.supplies), 0, WARFARE.baseSupply);
   }
+}
+
+function composeArmy(civilization: Civilization, size: number): Army["unitComposition"] {
+  const composition: Army["unitComposition"] = {};
+  let remaining = size;
+  const assign = (type: ArmyUnitType, share: number): void => {
+    if (remaining <= 0) return;
+    const amount = Math.min(remaining, Math.max(1, Math.floor(size * share)));
+    composition[type] = amount;
+    remaining -= amount;
+  };
+  if (civilization.unlockedTechnologyIds.includes("fortification")) assign("shieldBearer", 0.2);
+  if (civilization.unlockedTechnologyIds.includes("metallurgy")) assign("swordsman", 0.28);
+  if (civilization.unlockedTechnologyIds.includes("woodworking")) assign("archer", 0.24);
+  if (
+    civilization.unlockedTechnologyIds.includes("roads") &&
+    civilization.government !== "tribe" &&
+    size >= 12
+  ) {
+    assign("rider", 0.12);
+  }
+  composition.spearman = (composition.spearman ?? 0) + remaining;
+  return composition;
+}
+
+function compositionStrength(composition: Army["unitComposition"]): number {
+  const power: Record<ArmyUnitType, number> = {
+    spearman: 6,
+    swordsman: 7.4,
+    archer: 6.8,
+    shieldBearer: 7.1,
+    rider: 9
+  };
+  return (Object.entries(composition) as [ArmyUnitType, number][]).reduce(
+    (sum, [type, count]) => sum + power[type] * count,
+    0
+  );
 }
 
 function safeNumber(value: number | undefined): number {

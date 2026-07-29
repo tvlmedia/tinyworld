@@ -76,9 +76,13 @@ describe("warfare", () => {
 
   it("mobilizes armies and marks available residents as soldiers", () => {
     const { state, a, target } = addRivalCivilization();
+    a.unlockedTechnologyIds.push("woodworking", "metallurgy", "fortification");
     const army = mobilizeArmy(state, a, target);
     expect(army).toBeDefined();
     expect(army!.soldierIds.length).toBeGreaterThanOrEqual(4);
+    expect(army!.unitComposition.archer).toBeGreaterThan(0);
+    expect(army!.unitComposition.swordsman).toBeGreaterThan(0);
+    expect(army!.unitComposition.shieldBearer).toBeGreaterThan(0);
     expect(state.villagers.filter((villager) => villager.armyId === army!.id).length).toBeGreaterThan(0);
   });
 
@@ -130,8 +134,67 @@ describe("warfare", () => {
     army.supplies = 100;
     state.civilizationTimers.war = 999;
     updateWarfare(state, 1);
+    expect(army.siegePhase).toBe("camp");
+    expect(target.civilizationId).toBe(b.id);
+    for (let tick = 0; tick < 40 && target.civilizationId !== a.id; tick += 1) {
+      updateWarfare(state, 1);
+    }
     expect(war.occupiedSettlementIds).toContain(target.id);
     expect(target.civilizationId).toBe(a.id);
+    expect(state.historicEvents.some((event) => event.type === "siegeStarted")).toBe(true);
+    expect(state.historicEvents.some((event) => event.type === "wallBreached")).toBe(true);
+  });
+
+  it("calls allied civilizations into the same war", () => {
+    const { state, a, b, origin } = addRivalCivilization();
+    const ally: Civilization = {
+      ...a,
+      id: "civ-ally",
+      name: "Bondgenoten",
+      capitalSettlementId: "settlement-ally",
+      settlementIds: ["settlement-ally"],
+      knownCivilizationIds: [a.id, b.id],
+      activeTreatyIds: [],
+      activeWarIds: [],
+      warSupport: 70
+    };
+    const allySettlement: Settlement = {
+      ...origin,
+      id: "settlement-ally",
+      civilizationId: ally.id,
+      name: "Eikenwacht",
+      centerX: origin.centerX - 12,
+      residentIds: [],
+      buildingIds: [],
+      connectedSettlementIds: []
+    };
+    state.civilizations.push(ally);
+    state.settlements.push(allySettlement);
+    state.diplomaticRelations.push({
+      civilizationAId: a.id,
+      civilizationBId: ally.id,
+      opinionAOfB: 75,
+      opinionBOfA: 72,
+      trust: 80,
+      fear: 0,
+      tradeValue: 12,
+      status: "allied",
+      grievances: [],
+      positiveModifiers: [{ label: "bondgenootschap", value: 30 }]
+    });
+
+    const war = declareWar(state, a, b)!;
+
+    expect(war.attackerCivilizationIds).toContain(ally.id);
+    expect(ally.activeWarIds).toContain(war.id);
+    expect(state.armies.some((army) => army.civilizationId === ally.id && army.warId === war.id)).toBe(true);
+  });
+
+  it("uses a plunder policy for resource wars", () => {
+    const { state, a, b } = addRivalCivilization();
+
+    const war = declareWar(state, a, b, "resources")!;
+
+    expect(war.occupationPolicy).toBe("plunder");
   });
 });
-

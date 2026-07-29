@@ -168,6 +168,7 @@ function createIndependenceWar(state: GameState, rebel: Civilization, former: Ci
     defenderCivilizationIds: [former.id],
     startedYear: worldYear(state),
     goal: "independence",
+    occupationPolicy: "annex",
     targetSettlementId: settlement.id,
     attackerWarScore: 0,
     defenderWarScore: 0,
@@ -217,4 +218,3 @@ function uniqueCivilizationName(state: GameState, preferred: string): string {
   while (existing.includes(`${base} ${suffix}`)) suffix += 1;
   return `${base} ${suffix}`;
 }
-

@@ -1,5 +1,6 @@
 import { bootstrapCivilizationState, GameState, worldYear } from "../app/GameState";
 import { TERRITORY } from "../config/balanceConfig";
+import { developmentStageFor, developmentStageRank } from "../config/developmentConfig";
 import { BuildingType } from "../entities/Building";
 import { Civilization, CivilizationGoal, Settlement, SettlementPriority } from "../entities/Civilization";
 import { ResourceStore } from "../entities/Resources";
@@ -8,8 +9,6 @@ import { getTile, tileIndex } from "../world/World";
 import { addEvent } from "./EventSystem";
 import { claimAbandonedBuildings, removeEmptySettlements } from "./SettlementLifecycleSystem";
 import { economyMultiplier } from "./TechnologySystem";
-
-const CIVILIZATION_TITLES = ["Kamp", "Gehucht", "Dorp", "Stad", "Hoofdstad", "Koninkrijk", "Regionale macht", "Groot rijk"] as const;
 
 export function updateCivilization(state: GameState, dt: number): void {
   bootstrapCivilizationState(state);
@@ -29,15 +28,12 @@ export function forceTerritoryRefresh(state: GameState): void {
 
 function updateLegacyCivilizationSummary(state: GameState, dt: number): void {
   const completed = completedCounts(state);
-  const completedBuildings = state.buildings.filter((building) => building.status === "complete").length;
   const primary = state.civilizations[0];
-  const score =
-    (primary?.population ?? state.villagers.length) / 2 +
-    completedBuildings * 2 +
-    (primary?.prosperity ?? state.civilization.prosperity) / 18 +
-    (primary?.technologicalStrength ?? state.civilization.knowledge) / 20 +
-    state.civilization.culture / 24;
-  const nextLevel = score >= 110 ? 7 : score >= 80 ? 6 : score >= 55 ? 5 : score >= 42 ? 4 : score >= 30 ? 3 : score >= 19 ? 2 : score >= 11 ? 1 : 0;
+  const primarySettlements = primary
+    ? state.settlements.filter((settlement) => settlement.civilizationId === primary.id)
+    : [];
+  const stage = primary ? developmentStageFor(primary, primarySettlements) : undefined;
+  const nextLevel = stage ? developmentStageRank(stage.id) : 0;
 
   state.civilization.prosperity = Math.min(
     100,
@@ -54,12 +50,10 @@ function updateLegacyCivilizationSummary(state: GameState, dt: number): void {
   );
 
   if (nextLevel > state.civilization.level) {
-    state.civilization.level = nextLevel;
-    state.civilization.title = CIVILIZATION_TITLES[nextLevel];
-    addEvent(state, `${state.world.name} groeide uit tot een ${state.civilization.title.toLowerCase()}.`);
-  } else {
-    state.civilization.title = CIVILIZATION_TITLES[state.civilization.level] ?? "Kamp";
+    addEvent(state, `${state.world.name} groeide uit tot een ${stage?.label.toLowerCase() ?? "kamp"}.`);
   }
+  state.civilization.level = nextLevel;
+  state.civilization.title = stage?.label ?? "Kamp";
 
   state.civilization.nextGoal = nextCivilizationGoal(state, completed);
 
@@ -124,7 +118,13 @@ function syncSettlementAggregates(state: GameState): void {
     settlement.scienceProduction =
       (counts.school * 7 + counts.workshop * 2 + settlement.population * 0.03) * economyMultiplier(civilization, "research");
     settlement.wealthProduction = (counts.market * 8 + counts.storage * 1 + counts.monument * 1.5) * economyMultiplier(civilization, "wealth");
-    settlement.defense = counts.watchtower * 16 + counts.wall * 20 + (settlement.tier === "capital" ? 14 : 0);
+    settlement.defense =
+      counts.watchtower * 16 +
+      counts.wall * 4 +
+      counts.gate * 8 +
+      counts.barracks * 12 +
+      counts.castle * (18 + (completed.find((building) => building.type === "castle")?.upgradeLevel ?? 1) * 10) +
+      (settlement.tier === "capital" ? 14 : 0);
     settlement.happiness = Math.round(averageHappiness);
     settlement.foodSecurity = Math.round(clamp(((state.resources.food + settlement.foodProduction) / Math.max(1, settlement.population * 0.75)) * 42, 0, 100));
     settlement.stability = Math.round(clamp((settlement.happiness + settlement.foodSecurity + settlement.defense * 0.6) / 2.6, 0, 100));
@@ -317,7 +317,11 @@ function completedCounts(state: GameState): Record<BuildingType, number> {
     well: 0,
     market: 0,
     school: 0,
-    monument: 0
+    monument: 0,
+    barracks: 0,
+    castle: 0,
+    wall: 0,
+    gate: 0
   };
   for (const building of state.buildings) {
     if (building.status === "complete") counts[building.type] += 1;
@@ -325,8 +329,8 @@ function completedCounts(state: GameState): Record<BuildingType, number> {
   return counts;
 }
 
-function countBuildings(buildings: { type: BuildingType }[]): Record<BuildingType | "wall", number> {
-  const counts: Record<BuildingType | "wall", number> = {
+function countBuildings(buildings: { type: BuildingType }[]): Record<BuildingType, number> {
+  const counts: Record<BuildingType, number> = {
     campfire: 0,
     storage: 0,
     house: 0,
@@ -343,7 +347,10 @@ function countBuildings(buildings: { type: BuildingType }[]): Record<BuildingTyp
     market: 0,
     school: 0,
     monument: 0,
-    wall: 0
+    barracks: 0,
+    castle: 0,
+    wall: 0,
+    gate: 0
   };
   for (const building of buildings) counts[building.type] += 1;
   return counts;

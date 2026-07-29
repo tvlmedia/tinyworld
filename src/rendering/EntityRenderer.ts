@@ -72,7 +72,16 @@ export class EntityRenderer {
       ctx.strokeRect(screen.x - 2, screen.y - 2, width + 4, height + 4);
     }
 
-    if (building.status === "complete" && building.civilizationId && (building.type === "campfire" || building.type === "storage" || building.type === "market" || building.type === "watchtower")) {
+    if (
+      building.status === "complete" &&
+      building.civilizationId &&
+      (building.type === "campfire" ||
+        building.type === "storage" ||
+        building.type === "market" ||
+        building.type === "watchtower" ||
+        building.type === "castle" ||
+        building.type === "gate")
+    ) {
       this.drawCivilizationFlag(ctx, state, building, screen.x, screen.y, width, height);
     }
   }
@@ -181,6 +190,93 @@ export class EntityRenderer {
       ctx.fillStyle = "#c94c3f";
       ctx.fillRect(x + width * 0.47, y + height * 0.12, width * 0.06, height * 0.16);
       ctx.fillRect(x + width * 0.42, y + height * 0.17, width * 0.16, height * 0.06);
+      return;
+    }
+
+    if (building.type === "wall") {
+      const level = building.upgradeLevel ?? 1;
+      ctx.fillStyle = level >= 2 ? "#858b8b" : "#765136";
+      ctx.fillRect(x + width * 0.08, y + height * 0.12, width * 0.84, height * 0.8);
+      if (level === 1) {
+        ctx.strokeStyle = "#a7794b";
+        ctx.lineWidth = Math.max(1, width * 0.08);
+        for (let post = 0.22; post < 0.9; post += 0.25) {
+          ctx.beginPath();
+          ctx.moveTo(x + width * post, y + height * 0.08);
+          ctx.lineTo(x + width * post, y + height * 0.92);
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = "#5f6565";
+        ctx.lineWidth = Math.max(1, width * 0.06);
+        ctx.strokeRect(x + width * 0.08, y + height * 0.12, width * 0.84, height * 0.8);
+        if (level >= 3) ctx.fillRect(x, y + height * 0.58, width, height * 0.2);
+      }
+      return;
+    }
+
+    if (building.type === "gate") {
+      const stone = (building.upgradeLevel ?? 1) >= 2;
+      ctx.fillStyle = stone ? "#858b8b" : "#765136";
+      ctx.fillRect(x + width * 0.04, y + height * 0.08, width * 0.92, height * 0.84);
+      ctx.fillStyle = "#332a24";
+      ctx.fillRect(x + width * 0.36, y + height * 0.38, width * 0.28, height * 0.62);
+      ctx.fillStyle = stone ? "#a3a9a8" : "#9a6d43";
+      ctx.fillRect(x + width * 0.02, y, width * 0.18, height * 0.42);
+      ctx.fillRect(x + width * 0.8, y, width * 0.18, height * 0.42);
+      return;
+    }
+
+    if (building.type === "castle") {
+      const level = building.upgradeLevel ?? 1;
+      const stone = level >= 2;
+      ctx.fillStyle = stone ? "#8f9695" : "#815a3d";
+      ctx.fillRect(x + width * 0.1, y + height * 0.22, width * 0.8, height * 0.68);
+      ctx.fillStyle = stone ? "#6e7575" : "#5f402e";
+      const towers = level >= 4 ? 4 : level >= 3 ? 3 : 2;
+      const towerPositions = [
+        [0.05, 0.08],
+        [0.72, 0.08],
+        [0.05, 0.58],
+        [0.72, 0.58]
+      ];
+      for (let index = 0; index < towers; index += 1) {
+        const [towerX, towerY] = towerPositions[index];
+        ctx.fillRect(x + width * towerX, y + height * towerY, width * 0.23, height * 0.34);
+        if (level >= 3) {
+          ctx.fillRect(x + width * (towerX - 0.02), y + height * (towerY - 0.05), width * 0.07, height * 0.09);
+          ctx.fillRect(x + width * (towerX + 0.08), y + height * (towerY - 0.05), width * 0.07, height * 0.09);
+          ctx.fillRect(x + width * (towerX + 0.18), y + height * (towerY - 0.05), width * 0.07, height * 0.09);
+        }
+      }
+      ctx.fillStyle = stone ? "#4c5252" : "#3f2c22";
+      ctx.fillRect(x + width * 0.43, y + height * 0.58, width * 0.14, height * 0.32);
+      if (level >= 5) {
+        ctx.strokeStyle = "#626969";
+        ctx.lineWidth = Math.max(2, width * 0.035);
+        ctx.strokeRect(x + width * 0.02, y + height * 0.04, width * 0.96, height * 0.9);
+      }
+      return;
+    }
+
+    if (building.type === "barracks") {
+      ctx.fillStyle = building.visualEra === "stone" ? "#8d9290" : "#9b6546";
+      ctx.fillRect(x + width * 0.08, y + height * 0.28, width * 0.58, height * 0.62);
+      ctx.fillStyle = "#694239";
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.03, y + height * 0.3);
+      ctx.lineTo(x + width * 0.36, y + height * 0.06);
+      ctx.lineTo(x + width * 0.71, y + height * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#d5c6a0";
+      ctx.lineWidth = Math.max(1, width * 0.018);
+      for (let post = 0.73; post <= 0.92; post += 0.09) {
+        ctx.beginPath();
+        ctx.moveTo(x + width * post, y + height * 0.22);
+        ctx.lineTo(x + width * post, y + height * 0.84);
+        ctx.stroke();
+      }
       return;
     }
 

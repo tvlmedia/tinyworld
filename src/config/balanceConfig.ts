@@ -6,7 +6,8 @@ export const CIVILIZATION_UPDATE_INTERVALS = {
   territory: 40,
   war: 64,
   trade: 36,
-  history: 12
+  history: 12,
+  development: 12
 } as const;
 
 export const TERRITORY = {

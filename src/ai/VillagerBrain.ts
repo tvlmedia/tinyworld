@@ -8,6 +8,7 @@ import { Point, distance } from "../utils/MathUtils";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
 import { addEvent } from "../simulation/EventSystem";
+import { addHistoricalEvent } from "../simulation/HistorySystem";
 import { assignHomes, hasValidHome } from "../simulation/HousingSystem";
 import { beginEmergencyAction, completeEmergencyAction } from "../simulation/EmergencyResponseSystem";
 
@@ -528,8 +529,32 @@ function findNearestWalkable(state: GameState, point: Point): Point | undefined 
 }
 
 function completeBuilding(building: Building, state: GameState, builderName: string): void {
+  const completedUpgrade = building.upgradeTargetLevel;
   building.status = "complete";
   building.progress = building.workRequired;
+  if (completedUpgrade) {
+    building.upgradeLevel = completedUpgrade;
+    building.upgradeTargetLevel = undefined;
+    building.visualEra = completedUpgrade >= 2 ? "stone" : "wood";
+    building.maxHealth = Math.max(building.maxHealth, 100 + completedUpgrade * (building.type === "castle" ? 65 : 28));
+    building.health = building.maxHealth;
+    if (building.type === "castle") {
+      const settlement = state.settlements.find((item) => item.id === building.settlementId);
+      addHistoricalEvent(state, "castleUpgraded", `${settlement?.name ?? "De hoofdstad"} voltooide kasteelniveau ${completedUpgrade}.`, {
+        civilizationId: building.civilizationId,
+        settlementId: building.settlementId,
+        x: building.x,
+        y: building.y
+      });
+    }
+  } else if (building.type === "castle") {
+    addHistoricalEvent(state, "castleUpgraded", `${builderName} voltooide het eerste houten fort.`, {
+      civilizationId: building.civilizationId,
+      settlementId: building.settlementId,
+      x: building.x,
+      y: building.y
+    });
+  }
   if (building.type === "farm") {
     cultivateFarmPlots(state, building);
   }
@@ -539,7 +564,7 @@ function completeBuilding(building: Building, state: GameState, builderName: str
   if (building.type === "forestry") {
     establishManagedForest(state, building);
   }
-  createRoadToCenter(state, building);
+  if (building.type !== "wall" && building.type !== "gate") createRoadToCenter(state, building);
   addEvent(state, `${builderName} voltooide ${buildingLabel(building.type)}.`);
 }
 
@@ -683,6 +708,14 @@ function buildingLabel(type: Building["type"]): string {
       return "de school";
     case "monument":
       return "het monument";
+    case "barracks":
+      return "de kazerne";
+    case "castle":
+      return "het centrale fort";
+    case "wall":
+      return "de stadsmuur";
+    case "gate":
+      return "de stadspoort";
   }
 }
 

@@ -65,6 +65,7 @@ export function civilizationPanelHtml(state: GameState): string {
             <dt>Economie</dt><dd>${Math.round(selected.economicStrength)}</dd>
             <dt>Militair</dt><dd>${Math.round(selected.militaryStrength)}</dd>
             <dt>Legers</dt><dd>${activeArmies.length} (${activeArmies.reduce((sum, army) => sum + army.soldierIds.length, 0)} strijders)</dd>
+            <dt>Eenheden</dt><dd>${armyCompositionLabel(activeArmies)}</dd>
             <dt>Oorlogssteun</dt><dd>${Math.round(selected.warSupport)}</dd>
             <dt>Technologie</dt><dd>${Math.round(selected.technologicalStrength)}</dd>
             <dt>Research</dt><dd>${selected.currentResearchId ? TECHNOLOGIES_BY_ID[selected.currentResearchId]?.name ?? selected.currentResearchId : "-"}</dd>
@@ -82,6 +83,27 @@ export function civilizationPanelHtml(state: GameState): string {
         : ""
     }
   `;
+}
+
+function armyCompositionLabel(armies: GameState["armies"]): string {
+  const labels = {
+    spearman: "speren",
+    swordsman: "zwaarden",
+    archer: "bogen",
+    shieldBearer: "schilden",
+    rider: "ruiters"
+  } as const;
+  const totals: Partial<Record<keyof typeof labels, number>> = {};
+  for (const army of armies) {
+    for (const [type, count] of Object.entries(army.unitComposition ?? {})) {
+      const unitType = type as keyof typeof labels;
+      totals[unitType] = (totals[unitType] ?? 0) + count;
+    }
+  }
+  return (Object.entries(totals) as [keyof typeof labels, number][])
+    .filter(([, count]) => count > 0)
+    .map(([type, count]) => `${labels[type]} ${count}`)
+    .join(", ") || "-";
 }
 
 function warLabel(state: GameState, selectedId: string, war: GameState["wars"][number]): string {
