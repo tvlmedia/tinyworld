@@ -71,6 +71,7 @@ export interface DebugState {
 export interface BuildingEffects {
   woodBonus: boolean;
   workshopBonus: boolean;
+  mineBonus: boolean;
 }
 
 export interface CivilizationState {
@@ -156,7 +157,7 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     pathfinder: new Pathfinder(),
     villagers,
     buildings,
-    resources: { wood: 26, food: 55, stone: 10 },
+    resources: { wood: 8, food: 42, stone: 0 },
     time: {
       day: 1,
       minutes: 8 * 60,
@@ -191,7 +192,8 @@ export function createNewGameState(seed: string, size = DEFAULT_WORLD_SIZE, sett
     },
     buildingEffects: {
       woodBonus: false,
-      workshopBonus: false
+      workshopBonus: false,
+      mineBonus: false
     },
     civilization: defaultCivilizationState()
   };
@@ -229,6 +231,7 @@ export function releaseBuildingTiles(world: World, building: Building): void {
 export function refreshBuildingEffects(state: GameState): void {
   state.buildingEffects.woodBonus = state.buildings.some((building) => building.type === "woodcutter" && building.status === "complete");
   state.buildingEffects.workshopBonus = state.buildings.some((building) => building.type === "workshop" && building.status === "complete");
+  state.buildingEffects.mineBonus = state.buildings.some((building) => building.type === "mine" && building.status === "complete");
 }
 
 function findNearbySpawn(world: World, spawn: Point, index: number): Point {

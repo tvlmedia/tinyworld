@@ -111,12 +111,14 @@ export class EntityRenderer {
         ? "#b07b52"
         : building.type === "workshop"
           ? "#8a6b91"
+          : building.type === "mine"
+            ? "#766456"
           : building.type === "market"
             ? "#c98945"
             : building.type === "school"
               ? "#6d8eb4"
               : "#b86f58";
-    const roof = building.type === "watchtower" ? "#6d573c" : building.type === "market" ? "#b4473e" : "#7c4f3f";
+    const roof = building.type === "watchtower" ? "#6d573c" : building.type === "mine" ? "#49382f" : building.type === "market" ? "#b4473e" : "#7c4f3f";
     ctx.fillStyle = body;
     ctx.fillRect(x + width * 0.12, y + height * 0.35, width * 0.76, height * 0.52);
     ctx.fillStyle = roof;
@@ -134,6 +136,16 @@ export class EntityRenderer {
       ctx.fillRect(x + width * 0.18, y + height * 0.46, width * 0.18, height * 0.16);
       ctx.fillStyle = "#7bb661";
       ctx.fillRect(x + width * 0.64, y + height * 0.46, width * 0.18, height * 0.16);
+    }
+
+    if (building.type === "mine") {
+      ctx.fillStyle = "#2d2926";
+      ctx.beginPath();
+      ctx.ellipse(x + width * 0.5, y + height * 0.66, width * 0.18, height * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9da1a4";
+      ctx.fillRect(x + width * 0.18, y + height * 0.48, width * 0.18, height * 0.1);
+      ctx.fillRect(x + width * 0.64, y + height * 0.48, width * 0.18, height * 0.1);
     }
 
     if (building.type === "school") {

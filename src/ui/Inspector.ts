@@ -1,6 +1,7 @@
 import { GameState } from "../app/GameState";
 import { BUILDING_DEFINITIONS, allMaterialsDelivered, costLabel } from "../entities/Building";
 import { describeState } from "../entities/Villager";
+import { occupantsForHouse } from "../simulation/HousingSystem";
 import { getTile } from "../world/World";
 
 export function inspectorHtml(state: GameState): string {
@@ -30,6 +31,7 @@ export function inspectorHtml(state: GameState): string {
     const building = state.buildings.find((item) => item.id === selected.id);
     if (!building) return emptyInspector();
     const definition = BUILDING_DEFINITIONS[building.type];
+    const occupants = building.type === "house" ? occupantsForHouse(state, building.id).length : 0;
     return `
       <h2>${definition.label}</h2>
       <dl>
@@ -37,7 +39,7 @@ export function inspectorHtml(state: GameState): string {
         <dt>Gezondheid</dt><dd>${Math.round(building.health)} / ${building.maxHealth}</dd>
         <dt>Voortgang</dt><dd>${Math.round((building.progress / building.workRequired) * 100)}%</dd>
         <dt>Materiaal</dt><dd>${allMaterialsDelivered(building) ? "klaar" : costLabel(building.type)}</dd>
-        <dt>Bedden</dt><dd>${building.capacity}</dd>
+        <dt>Bedden</dt><dd>${building.capacity > 0 ? `${occupants} / ${building.capacity}` : "-"}</dd>
         <dt>Opslagruimte</dt><dd>${building.storageCapacity}</dd>
         <dt>Productie</dt><dd>${buildingProductionLabel(building.type)}</dd>
       </dl>
@@ -69,6 +71,8 @@ function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): strin
       return "voedsel";
     case "woodcutter":
       return "hout";
+    case "mine":
+      return "steenaders";
     case "workshop":
       return "steen en sneller bouwen";
     case "well":

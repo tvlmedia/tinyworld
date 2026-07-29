@@ -6,6 +6,7 @@ export type BuildingType =
   | "storage"
   | "house"
   | "woodcutter"
+  | "mine"
   | "farm"
   | "workshop"
   | "watchtower"
@@ -69,7 +70,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     label: "Huis",
     width: 3,
     height: 3,
-    costs: { wood: 20, stone: 2 },
+    costs: { wood: 18, stone: 2 },
     buildWorkRequired: 34,
     capacity: 4
   },
@@ -80,6 +81,14 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     height: 2,
     costs: { wood: 14, stone: 4 },
     buildWorkRequired: 28
+  },
+  mine: {
+    type: "mine",
+    label: "Mijn",
+    width: 3,
+    height: 2,
+    costs: { wood: 12 },
+    buildWorkRequired: 30
   },
   farm: {
     type: "farm",

@@ -1,13 +1,11 @@
 import { GameState } from "../app/GameState";
-import { BuildingType, materialMissing } from "../entities/Building";
-import { getTile } from "../world/World";
+import { BuildingType } from "../entities/Building";
 import { addEvent } from "./EventSystem";
 
 const CIVILIZATION_TITLES = ["Kamp", "Gehucht", "Dorp", "Stadje", "Beschaving"] as const;
 
 export function updateCivilization(state: GameState, dt: number): void {
   const completed = completedCounts(state);
-  ensureStoneOutcropForActiveBuild(state);
   const completedBuildings = state.buildings.filter((building) => building.status === "complete").length;
   const score =
     state.villagers.length +
@@ -22,7 +20,10 @@ export function updateCivilization(state: GameState, dt: number): void {
     state.civilization.prosperity +
       dt * (completed.market * 0.05 + completed.storage * 0.015 + completed.farm * 0.012 + completed.house * 0.008)
   );
-  state.civilization.knowledge = Math.min(100, state.civilization.knowledge + dt * (completed.school * 0.065 + completed.workshop * 0.025));
+  state.civilization.knowledge = Math.min(
+    100,
+    state.civilization.knowledge + dt * (completed.school * 0.065 + completed.workshop * 0.025 + completed.mine * 0.012)
+  );
   state.civilization.culture = Math.min(
     100,
     state.civilization.culture + dt * (completed.monument * 0.08 + completed.watchtower * 0.018 + completed.market * 0.01)
@@ -51,45 +52,11 @@ export function updateCivilization(state: GameState, dt: number): void {
   }
 }
 
-function ensureStoneOutcropForActiveBuild(state: GameState): void {
-  const needsStone = state.buildings.some((building) => building.status !== "complete" && materialMissing(building, "stone") > 0);
-  if (!needsStone || state.resources.stone > 0 || countNearbyStone(state) > 0) return;
-
-  const center = state.world.spawn;
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const angle = state.rng.float(0, Math.PI * 2);
-    const radius = state.rng.float(8, 24);
-    const x = Math.floor(center.x + Math.cos(angle) * radius);
-    const y = Math.floor(center.y + Math.sin(angle) * radius);
-    const tile = getTile(state.world, x, y);
-    if (!tile || tile.occupiedByBuildingId || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain" || tile.type === "road") {
-      continue;
-    }
-    tile.type = "rock";
-    tile.resourceAmount = 5;
-    state.world.version += 1;
-    state.pathfinder.clear();
-    addEvent(state, "Bewoners vonden een bruikbare steengroeve.");
-    return;
-  }
-}
-
-function countNearbyStone(state: GameState): number {
-  let count = 0;
-  const center = state.world.spawn;
-  for (let y = center.y - 32; y <= center.y + 32; y += 1) {
-    for (let x = center.x - 32; x <= center.x + 32; x += 1) {
-      const tile = getTile(state.world, x, y);
-      if (tile?.type === "rock" && tile.resourceAmount > 0) count += 1;
-    }
-  }
-  return count;
-}
-
 function nextCivilizationGoal(state: GameState, completed: Record<BuildingType, number>): string {
   const bedCapacity = state.buildings
     .filter((building) => building.status === "complete" && building.type === "house")
     .reduce((sum, building) => sum + building.capacity, 0);
+  if (completed.mine < 1) return "bouw een mijn";
   if (bedCapacity < state.villagers.length + 2) return "bouw meer huizen";
   if (completed.farm < Math.max(1, Math.ceil(state.villagers.length / 7))) return "leg meer boerderijen aan";
   if (completed.woodcutter < 1) return "bouw een houthakkershut";
@@ -107,6 +74,7 @@ function completedCounts(state: GameState): Record<BuildingType, number> {
     storage: 0,
     house: 0,
     woodcutter: 0,
+    mine: 0,
     farm: 0,
     workshop: 0,
     watchtower: 0,

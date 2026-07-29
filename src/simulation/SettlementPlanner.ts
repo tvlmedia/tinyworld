@@ -30,6 +30,7 @@ export function chooseNextBuilding(state: GameState): BuildingType | undefined {
     .reduce((sum, building) => sum + building.capacity, 0);
   const desiredFarms = Math.min(4, Math.max(1, Math.ceil(state.villagers.length / 6)));
 
+  if (completed("mine") < 1 && !planned("mine")) return "mine";
   if (bedCapacity < state.villagers.length + 2 && !planned("house")) return "house";
   if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
   if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
@@ -87,7 +88,8 @@ function scoreSpot(state: GameState, spot: Point, type: BuildingType): number {
   const centerDistance = Math.hypot(spot.x - state.world.spawn.x, spot.y - state.world.spawn.y);
   const roadBonus = nearbyRoadCount(state, spot) * -3;
   const farmFertility = type === "farm" ? -averageFertility(state, spot, BUILDING_DEFINITIONS[type].width, BUILDING_DEFINITIONS[type].height) * 16 : 0;
-  return centerDistance + roadBonus + farmFertility;
+  const mineRocks = type === "mine" ? nearbyRockCount(state, spot) * -5 : 0;
+  return centerDistance + roadBonus + farmFertility + mineRocks;
 }
 
 function nearbyRoadCount(state: GameState, spot: Point): number {
@@ -113,6 +115,17 @@ function averageFertility(state: GameState, spot: Point, width: number, height: 
     }
   }
   return count > 0 ? sum / count : 0;
+}
+
+function nearbyRockCount(state: GameState, spot: Point): number {
+  let count = 0;
+  for (let y = spot.y - 6; y <= spot.y + 6; y += 1) {
+    for (let x = spot.x - 6; x <= spot.x + 6; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (tile?.type === "rock" && tile.resourceAmount > 0) count += 1;
+    }
+  }
+  return count;
 }
 
 function convertFootprintToFarmland(state: GameState, x: number, y: number, width: number, height: number): void {

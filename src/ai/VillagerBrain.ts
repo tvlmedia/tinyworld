@@ -8,6 +8,7 @@ import { Point, distance } from "../utils/MathUtils";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
 import { addEvent } from "../simulation/EventSystem";
+import { assignHomes, hasValidHome } from "../simulation/HousingSystem";
 
 const RESOURCE_TYPES: ResourceType[] = ["wood", "food", "stone"];
 
@@ -159,7 +160,7 @@ function decideNextAction(villager: Villager, state: GameState): void {
   }
 
   const work = preferredWork(villager);
-  if (state.resources.stone < Math.max(10, state.villagers.length) && (work === "build" || state.rng.chance(0.35))) {
+  if (state.buildingEffects.mineBonus && state.resources.stone < Math.max(10, state.villagers.length) && (work === "build" || state.rng.chance(0.35))) {
     findStone(villager, state);
     return;
   }
@@ -325,7 +326,9 @@ function fetchMaterial(villager: Villager, state: GameState, building: Building)
 function gatherResource(villager: Villager, state: GameState, resource: ResourceType): void {
   if (resource === "wood") findTree(villager, state);
   else if (resource === "food") findFood(villager, state);
-  else findStone(villager, state);
+  else if (state.buildingEffects.mineBonus) findStone(villager, state);
+  else if (state.resources.wood < 12) findTree(villager, state);
+  else wander(villager, state);
 }
 
 function missingStoredResourceForBuildSite(state: GameState, building: Building): ResourceType | undefined {
@@ -348,14 +351,17 @@ function deliverMaterial(villager: Villager, state: GameState): void {
 }
 
 function goSleep(villager: Villager, state: GameState): void {
-  const home = villager.homeId ? state.buildings.find((building) => building.id === villager.homeId) : undefined;
-  const campfire = nearestCompletedBuilding(state, villager, "campfire");
-  const target = home ?? campfire;
-  if (!target) {
+  if (!hasValidHome(state, villager)) assignHomes(state);
+  const home = villager.homeId ? state.buildings.find((building) => building.id === villager.homeId && building.status === "complete") : undefined;
+  if (!home) {
+    villager.energy = Math.min(100, villager.energy + 4);
+    villager.happiness = clampStat(villager.happiness - 1.8);
+    if (villager.energy < 12) villager.health = Math.max(0, villager.health - 0.25);
+    say(villager, "geen bed");
     setVillagerState(villager, "idle");
     return;
   }
-  const restTile = nearestWalkableAdjacent(state, target, villager);
+  const restTile = nearestWalkableAdjacent(state, home, villager);
   if (!restTile) {
     setVillagerState(villager, "idle");
     return;
@@ -496,18 +502,63 @@ function completeBuilding(building: Building, state: GameState, builderName: str
   building.status = "complete";
   building.progress = building.workRequired;
   if (building.type === "farm") {
-    for (let y = building.y; y < building.y + building.height; y += 1) {
-      for (let x = building.x; x < building.x + building.width; x += 1) {
-        const tile = getTile(state.world, x, y);
-        if (tile) {
-          tile.type = "farmland";
-          tile.resourceAmount = Math.max(1, tile.resourceAmount);
-        }
-      }
-    }
+    cultivateFarmPlots(state, building);
+  }
+  if (building.type === "mine") {
+    openMineShaft(state, building);
   }
   createRoadToCenter(state, building);
   addEvent(state, `${builderName} voltooide ${buildingLabel(building.type)}.`);
+}
+
+function cultivateFarmPlots(state: GameState, building: Building): void {
+  for (let y = building.y - 2; y < building.y + building.height + 2; y += 1) {
+    for (let x = building.x - 2; x < building.x + building.width + 2; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (!tile || tile.occupiedByBuildingId || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain" || tile.type === "rock") {
+        continue;
+      }
+      if (tile.type === "grass" || tile.type === "sand" || tile.type === "burned" || tile.type === "farmland") {
+        tile.type = "farmland";
+        tile.resourceAmount = Math.max(3, tile.resourceAmount);
+      }
+    }
+  }
+  state.world.version += 1;
+}
+
+function openMineShaft(state: GameState, building: Building): void {
+  let exposed = 0;
+  for (let radius = 1; radius <= 5 && exposed < 5; radius += 1) {
+    for (let y = building.y - radius; y < building.y + building.height + radius && exposed < 5; y += 1) {
+      for (let x = building.x - radius; x < building.x + building.width + radius && exposed < 5; x += 1) {
+        const onRing =
+          x === building.x - radius ||
+          x === building.x + building.width + radius - 1 ||
+          y === building.y - radius ||
+          y === building.y + building.height + radius - 1;
+        if (!onRing) continue;
+        const tile = getTile(state.world, x, y);
+        if (!tile || tile.occupiedByBuildingId || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain" || tile.type === "road") {
+          continue;
+        }
+        if (tile.type === "rock") {
+          tile.resourceAmount = Math.max(tile.resourceAmount, 6);
+        } else if (tile.type === "grass" || tile.type === "sand" || tile.type === "burned") {
+          tile.type = "rock";
+          tile.resourceAmount = 6;
+        } else {
+          continue;
+        }
+        exposed += 1;
+      }
+    }
+  }
+  if (exposed > 0) {
+    state.world.version += 1;
+    state.pathfinder.clear();
+    addEvent(state, "De mijn legde een steenader bloot.");
+  }
 }
 
 function createRoadToCenter(state: GameState, building: Building): void {
@@ -540,6 +591,8 @@ function buildingLabel(type: Building["type"]): string {
       return "een huis";
     case "woodcutter":
       return "de houthakkershut";
+    case "mine":
+      return "de mijn";
     case "farm":
       return "de boerderij";
     case "workshop":

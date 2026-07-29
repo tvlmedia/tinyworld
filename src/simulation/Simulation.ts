@@ -2,11 +2,14 @@ import { updateVillager } from "../ai/VillagerBrain";
 import { refreshBuildingEffects, GameState } from "../app/GameState";
 import { updateCivilization } from "./CivilizationSystem";
 import { updateFire } from "./FireSystem";
+import { updateHousing } from "./HousingSystem";
 import { updateNature } from "./NatureSystem";
 import { updatePopulation } from "./PopulationSystem";
 import { updateSettlementPlanner } from "./SettlementPlanner";
 import { updateTime } from "./TimeSystem";
 import { updateWeather } from "./WeatherSystem";
+import { Building } from "../entities/Building";
+import { getTile } from "../world/World";
 
 export class Simulation {
   update(state: GameState, dt: number): void {
@@ -14,6 +17,7 @@ export class Simulation {
     updateTime(state, dt);
     updateWeather(state, dt);
     updateNature(state, dt);
+    updateHousing(state);
     updateSettlementPlanner(state, dt);
     for (const villager of state.villagers) {
       updateVillager(villager, state, dt);
@@ -22,6 +26,7 @@ export class Simulation {
     updatePopulation(state, dt);
     updateCivilization(state, dt);
     updateFire(state, dt);
+    updateHousing(state);
     updateCooldowns(state, dt);
     refreshBuildingEffects(state);
     state.debug.tickMs = performance.now() - started;
@@ -35,22 +40,9 @@ function updateProduction(state: GameState, dt: number): void {
   for (const building of state.buildings) {
     if (building.status !== "complete") continue;
     building.productionTimer += dt;
-    if (building.type === "farm") {
-      if (building.productionTimer >= 9) {
-        building.productionTimer = 0;
-        const rainBonus = state.weather.current === "rain" ? 2 : state.weather.current === "drought" ? -1 : 0;
-        state.resources.food += Math.max(2, 5 + rainBonus + Math.floor(state.civilization.prosperity / 35));
-      }
-    } else if (building.type === "woodcutter" && building.productionTimer >= 18) {
+    if (building.type === "mine" && building.productionTimer >= 36) {
       building.productionTimer = 0;
-      state.resources.wood += 5 + Math.floor(state.civilization.knowledge / 35);
-    } else if (building.type === "workshop" && building.productionTimer >= 22) {
-      building.productionTimer = 0;
-      state.resources.stone += 2;
-    } else if (building.type === "market" && building.productionTimer >= 16) {
-      building.productionTimer = 0;
-      state.resources.food += 2;
-      state.resources.wood += 1;
+      refreshMineVein(state, building);
     } else if (building.type === "school" && building.productionTimer >= 30) {
       building.productionTimer = 0;
       for (const villager of state.villagers) {
@@ -58,6 +50,36 @@ function updateProduction(state: GameState, dt: number): void {
       }
     }
   }
+}
+
+function refreshMineVein(state: GameState, mine: Building): void {
+  let fallback: { x: number; y: number } | undefined;
+  for (let y = mine.y - 3; y < mine.y + mine.height + 3; y += 1) {
+    for (let x = mine.x - 3; x < mine.x + mine.width + 3; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (!tile || tile.occupiedByBuildingId || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain" || tile.type === "road") {
+        continue;
+      }
+      if (tile.type === "rock") {
+        if (tile.resourceAmount < 8) {
+          tile.resourceAmount += 1;
+          state.world.version += 1;
+        }
+        return;
+      }
+      if (!fallback && (tile.type === "grass" || tile.type === "sand" || tile.type === "burned")) {
+        fallback = { x, y };
+      }
+    }
+  }
+
+  if (!fallback) return;
+  const tile = getTile(state.world, fallback.x, fallback.y);
+  if (!tile) return;
+  tile.type = "rock";
+  tile.resourceAmount = 4;
+  state.world.version += 1;
+  state.pathfinder.clear();
 }
 
 function updateCooldowns(state: GameState, dt: number): void {

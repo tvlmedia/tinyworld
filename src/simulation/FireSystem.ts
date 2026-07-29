@@ -1,5 +1,5 @@
-import { GameState } from "../app/GameState";
-import { FireState } from "../app/GameState";
+import { FireState, GameState, releaseBuildingTiles } from "../app/GameState";
+import { BUILDING_DEFINITIONS, Building } from "../entities/Building";
 import { neighbors4 } from "../utils/MathUtils";
 import { getTile } from "../world/World";
 import { addEvent } from "./EventSystem";
@@ -22,6 +22,7 @@ export function updateFire(state: GameState, dt: number): void {
     }
 
     damageBuildingsAt(state, fire, dt);
+    damageVillagersAt(state, fire, dt);
 
     if (fire.fuel <= 0 || fire.intensity <= 0.03) {
       if (tile.type === "forest" || tile.type === "grass" || tile.type === "farmland") {
@@ -43,7 +44,7 @@ export function igniteTile(state: GameState, x: number, y: number, intensity = 0
   const tile = getTile(state.world, x, y);
   if (!tile || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain") return false;
   if (state.fires.some((fire) => fire.x === x && fire.y === y)) return false;
-  const fuel = tile.type === "forest" ? 5 : tile.type === "grass" || tile.type === "farmland" ? 2.6 : 1.5;
+  const fuel = fireFuelForTile(state, x, y);
   state.fires.push({ x, y, intensity, fuel, spreadTimer: 2 });
   return true;
 }
@@ -64,19 +65,97 @@ function spreadFire(state: GameState, fire: FireState, newFires: FireState[]): v
     if (!tile || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain") continue;
     if (state.fires.some((existing) => existing.x === neighbor.x && existing.y === neighbor.y)) continue;
     if (newFires.some((existing) => existing.x === neighbor.x && existing.y === neighbor.y)) continue;
-    const fuel = tile.type === "forest" ? 5 : tile.type === "grass" || tile.type === "farmland" ? 2.4 : 1.2;
+    const fuel = fireFuelForTile(state, neighbor.x, neighbor.y);
     newFires.push({ x: neighbor.x, y: neighbor.y, intensity: fire.intensity * 0.55, fuel, spreadTimer: 3 });
   }
 }
 
 function damageBuildingsAt(state: GameState, fire: FireState, dt: number): void {
+  const destroyed: Building[] = [];
   for (const building of state.buildings) {
     const inside = fire.x >= building.x && fire.y >= building.y && fire.x < building.x + building.width && fire.y < building.y + building.height;
     if (!inside) continue;
-    building.health -= fire.intensity * dt * 2.2;
+    building.health -= fire.intensity * dt * 3.4;
     if (building.health <= 0) {
       building.health = 0;
-      addEvent(state, `${building.type} brandde af.`);
+      destroyed.push(building);
     }
   }
+  for (const building of destroyed) destroyBuilding(state, building, fire);
+}
+
+function damageVillagersAt(state: GameState, fire: FireState, dt: number): void {
+  const casualties = new Set<string>();
+  for (const villager of state.villagers) {
+    const d = Math.hypot(villager.x - (fire.x + 0.5), villager.y - (fire.y + 0.5));
+    if (d > 1.05 + fire.intensity * 0.25) continue;
+    villager.health -= fire.intensity * dt * 9;
+    villager.happiness = Math.max(0, villager.happiness - fire.intensity * dt * 4);
+    if (villager.health <= 0) casualties.add(villager.id);
+  }
+  removeCasualties(state, casualties, "kwam om in de brand.");
+}
+
+function destroyBuilding(state: GameState, building: Building, fire: FireState): void {
+  if (!state.buildings.some((item) => item.id === building.id)) return;
+  const casualties = new Set<string>();
+
+  if (building.type === "house") {
+    for (const villager of state.villagers) {
+      if (villager.homeId === building.id) casualties.add(villager.id);
+    }
+  }
+
+  for (const villager of state.villagers) {
+    const inside =
+      villager.x >= building.x &&
+      villager.y >= building.y &&
+      villager.x < building.x + building.width &&
+      villager.y < building.y + building.height;
+    const nearFlames = Math.hypot(villager.x - (fire.x + 0.5), villager.y - (fire.y + 0.5)) < 1.4;
+    if (inside || nearFlames) casualties.add(villager.id);
+  }
+
+  const casualtyCount = removeCasualties(state, casualties, "kwam om toen een gebouw afbrandde.");
+  releaseBuildingTiles(state.world, building);
+  scorchFootprint(state, building);
+  state.buildings = state.buildings.filter((item) => item.id !== building.id);
+  if (state.selected.kind === "building" && state.selected.id === building.id) state.selected = { kind: "none" };
+  state.pathfinder.clear();
+
+  const label = BUILDING_DEFINITIONS[building.type].label.toLowerCase();
+  const victims = casualtyCount === 1 ? " 1 bewoner kwam om." : casualtyCount > 1 ? ` ${casualtyCount} bewoners kwamen om.` : "";
+  addEvent(state, `De ${label} brandde af.${victims}`);
+}
+
+function removeCasualties(state: GameState, casualties: Set<string>, fallbackText: string): number {
+  if (casualties.size === 0) return 0;
+  const names = state.villagers.filter((villager) => casualties.has(villager.id)).map((villager) => villager.name);
+  state.villagers = state.villagers.filter((villager) => !casualties.has(villager.id));
+  if (state.selected.kind === "villager" && casualties.has(state.selected.id)) state.selected = { kind: "none" };
+  if (names.length === 1) addEvent(state, `${names[0]} ${fallbackText}`);
+  return names.length;
+}
+
+function scorchFootprint(state: GameState, building: Building): void {
+  for (let y = building.y; y < building.y + building.height; y += 1) {
+    for (let x = building.x; x < building.x + building.width; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (!tile || tile.type === "water" || tile.type === "deepWater" || tile.type === "mountain") continue;
+      tile.type = "burned";
+      tile.resourceAmount = 0;
+      tile.occupiedByBuildingId = undefined;
+    }
+  }
+  state.world.version += 1;
+}
+
+function fireFuelForTile(state: GameState, x: number, y: number): number {
+  const tile = getTile(state.world, x, y);
+  if (!tile) return 0;
+  if (tile.occupiedByBuildingId) return 8;
+  if (tile.type === "forest") return 5;
+  if (tile.type === "grass" || tile.type === "farmland") return 2.6;
+  if (tile.type === "road" || tile.type === "burned") return 0.9;
+  return 1.5;
 }

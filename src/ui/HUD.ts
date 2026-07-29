@@ -1,4 +1,5 @@
 import { GameState } from "../app/GameState";
+import { homelessCount, housingCapacity } from "../simulation/HousingSystem";
 import { formattedClock } from "../simulation/TimeSystem";
 import { weatherLabel } from "../simulation/WeatherSystem";
 
@@ -6,6 +7,8 @@ export function hudSummary(state: GameState): string {
   const happiness = Math.round(
     state.villagers.reduce((sum, villager) => sum + villager.happiness, 0) / Math.max(1, state.villagers.length)
   );
+  const beds = housingCapacity(state);
+  const homeless = homelessCount(state);
   return `
     <div class="topbar__title">
       <strong>${state.world.name}</strong>
@@ -20,6 +23,8 @@ export function hudSummary(state: GameState): string {
     </div>
     <div class="resource-strip" aria-label="Dorpsvoorraad">
       <span>Bewoners <strong>${state.villagers.length}</strong></span>
+      <span>Bedden <strong>${state.villagers.length - homeless}/${beds}</strong></span>
+      ${homeless > 0 ? `<span>Geen huis <strong>${homeless}</strong></span>` : ""}
       <span>Voedsel <strong>${Math.floor(state.resources.food)}</strong></span>
       <span>Hout <strong>${Math.floor(state.resources.wood)}</strong></span>
       <span>Steen <strong>${Math.floor(state.resources.stone)}</strong></span>

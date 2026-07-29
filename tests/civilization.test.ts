@@ -14,6 +14,7 @@ describe("civilization growth", () => {
     const completedBuildings = state.buildings.filter((building) => building.status === "complete");
     const completedTypes = new Set(completedBuildings.map((building) => building.type));
     expect(completedBuildings.length).toBeGreaterThanOrEqual(10);
+    expect(completedTypes.has("mine")).toBe(true);
     expect(completedTypes.has("workshop")).toBe(true);
     expect(completedTypes.has("market")).toBe(true);
     expect(completedTypes.has("school")).toBe(true);

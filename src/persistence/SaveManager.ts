@@ -97,7 +97,8 @@ export class SaveManager {
       },
       buildingEffects: {
         woodBonus: false,
-        workshopBonus: false
+        workshopBonus: false,
+        mineBonus: false
       },
       civilization: { ...defaultCivilizationState(), ...(migrated.civilization ?? {}) }
     };
