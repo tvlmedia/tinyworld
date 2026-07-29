@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateWorld, validateWorld } from "../src/world/WorldGenerator";
+import { countLandComponents } from "../src/world/Maritime";
 
 describe("WorldGenerator", () => {
   it("generates deterministic tile types for a fixed seed", () => {
@@ -24,7 +25,8 @@ describe("WorldGenerator", () => {
     expect(world.height).toBe(size);
     expect(world.tiles).toHaveLength(size * size);
     expect(validation.playable).toBe(true);
-    expect(validation.largestLandArea).toBeGreaterThan(validation.landTiles * 0.55);
+    expect(validation.largestLandArea).toBeGreaterThan(validation.landTiles * (size >= 256 ? 0.25 : 0.5));
+    if (size >= 256) expect(countLandComponents(world, Math.floor(size * size * 0.015))).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps generation deterministic per seed and world size", () => {

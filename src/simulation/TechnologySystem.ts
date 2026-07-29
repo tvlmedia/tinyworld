@@ -8,6 +8,7 @@ const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, string>> = {
   forestry: "woodworking",
   reservoir: "masonry",
   firestation: "fire_safety",
+  harbor: "shipbuilding",
   market: "markets",
   school: "writing",
   watchtower: "fortification",

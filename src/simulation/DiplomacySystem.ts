@@ -6,6 +6,7 @@ import { Civilization, DiplomaticRelation, DiplomaticStatus, Settlement, TradeRo
 import { createVillager, villagerName } from "../entities/Villager";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
+import { areLandConnected, hasHarbor } from "../world/Maritime";
 import { forceTerritoryRefresh } from "./CivilizationSystem";
 import { addHistoricalEvent } from "./HistorySystem";
 
@@ -42,6 +43,8 @@ export function canTrade(state: GameState, a: Civilization, b: Civilization): bo
   if (opinion < DIPLOMACY.tradeMinimumOpinion) return false;
   const pairSettlements = closestSettlementPair(state, a, b);
   if (!pairSettlements || pairSettlements.distance > TRADE.maxRouteDistance) return false;
+  const crossesSea = !areLandConnected(state.world, pairSettlements.a, pairSettlements.b);
+  if (crossesSea && (!hasHarbor(state, pairSettlements.a.id) || !hasHarbor(state, pairSettlements.b.id))) return false;
   return hasComplementaryEconomy(pairSettlements.a, pairSettlements.b);
 }
 
@@ -103,7 +106,8 @@ function evaluateTradeRoutes(state: GameState): void {
         goods: tradeGoods(pair.a, pair.b),
         value: routeValue,
         active: true,
-        progress: 0
+        progress: 0,
+        transport: areLandConnected(state.world, pair.a, pair.b) ? "land" : "sea"
       };
       state.tradeRoutes.push(route);
       a.activeTreatyIds.push(route.id);
@@ -123,7 +127,7 @@ function evaluateTradeRoutes(state: GameState): void {
 function updateTradeRoutes(state: GameState, dt: number): void {
   for (const route of state.tradeRoutes) {
     if (!route.active) continue;
-    route.progress += TRADE.caravanSpeed * dt;
+    route.progress += TRADE.caravanSpeed * (route.transport === "sea" ? 1.3 : 1) * dt;
     if (route.progress < 1) continue;
     deliverTradeRoute(state, route);
   }

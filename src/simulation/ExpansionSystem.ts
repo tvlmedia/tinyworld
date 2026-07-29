@@ -8,8 +8,10 @@ import { createVillager, villagerName } from "../entities/Villager";
 import { Point, clamp } from "../utils/MathUtils";
 import { isWalkableTile, isWater } from "../world/Tile";
 import { getTile } from "../world/World";
+import { areLandConnected, hasHarbor } from "../world/Maritime";
 import { forceTerritoryRefresh } from "./CivilizationSystem";
 import { addHistoricalEvent } from "./HistorySystem";
+import { hasTechnology } from "./TechnologySystem";
 
 export function updateExpansion(state: GameState, dt: number): void {
   updateSettlementTiers(state);
@@ -107,6 +109,8 @@ function maybePlanColonization(state: GameState): void {
     if (state.resources.food < COLONIZATION.baseFoodCost + foodReserve || state.resources.wood < COLONIZATION.baseWoodCost + woodReserve) continue;
     const site = findExpansionSite(state, civilization, origin);
     if (!site) continue;
+    const seaJourney = !areLandConnected(state.world, origin, site);
+    if (seaJourney && (!hasTechnology(civilization, "shipbuilding") || !hasHarbor(state, origin.id))) continue;
     state.resources.food -= COLONIZATION.baseFoodCost;
     state.resources.wood -= COLONIZATION.baseWoodCost;
     state.colonistGroups.push({
@@ -120,14 +124,22 @@ function maybePlanColonization(state: GameState): void {
       settlers: COLONIZATION.settlers,
       resources: { food: COLONIZATION.baseFoodCost, wood: COLONIZATION.baseWoodCost, stone: 0 },
       targetName: uniqueSettlementName(state),
-      state: "traveling"
+      state: "traveling",
+      transport: seaJourney ? "sea" : "land"
     });
-    addHistoricalEvent(state, "colonization", `${civilization.name} stuurde kolonisten uit vanuit ${origin.name}.`, {
+    addHistoricalEvent(
+      state,
+      "colonization",
+      seaJourney
+        ? `${civilization.name} stuurde vanuit de haven van ${origin.name} kolonisten over zee.`
+        : `${civilization.name} stuurde kolonisten uit vanuit ${origin.name}.`,
+      {
       civilizationId: civilization.id,
       settlementId: origin.id,
       x: origin.centerX,
       y: origin.centerY
-    });
+      }
+    );
     plannedThisTick += 1;
     if (plannedThisTick >= 3) return;
   }
@@ -143,7 +155,7 @@ function updateColonistGroups(state: GameState, dt: number): void {
     const dx = group.targetX - group.x;
     const dy = group.targetY - group.y;
     const distance = Math.hypot(dx, dy);
-    const speed = 0.88;
+    const speed = group.transport === "sea" ? 1.35 : 0.88;
     group.resources.food = Math.max(0, group.resources.food - dt * 0.025 * group.settlers);
     if (group.resources.food <= 0 && state.rng.chance(0.015 * dt)) {
       group.settlers = Math.max(1, group.settlers - 1);
@@ -220,7 +232,7 @@ function foundSettlement(state: GameState, group: ColonistGroup): void {
   };
   civilization.settlementIds = Array.from(new Set([...civilization.settlementIds, settlement.id]));
   state.settlements.push(settlement);
-  connectSettlementsWithRoad(state, origin, settlement);
+  if (group.transport !== "sea") connectSettlementsWithRoad(state, origin, settlement);
   forceTerritoryRefresh(state);
   addHistoricalEvent(state, "settlementFounded", `${civilization.name} stichtten ${settlement.name}.`, {
     civilizationId: civilization.id,
@@ -395,12 +407,25 @@ export function maintainRoadNetworks(state: GameState): number {
     for (const settlement of disconnected) {
       const target = nearestConnectedSettlement(settlements, settlement, capital);
       if (!target) continue;
+      if (!areLandConnected(state.world, settlement, target)) {
+        if (hasHarbor(state, settlement.id) && hasHarbor(state, target.id)) {
+          settlement.connectedSettlementIds = Array.from(new Set([...settlement.connectedSettlementIds, target.id]));
+          target.connectedSettlementIds = Array.from(new Set([...target.connectedSettlementIds, settlement.id]));
+          linksBuilt += 1;
+        }
+        continue;
+      }
       if (connectSettlementsWithRoad(state, settlement, target) > 0) linksBuilt += 1;
       if (linksBuilt >= ROAD_NETWORK.maxLinksPerStrategyTick) return linksBuilt;
     }
 
     const extraPair = closestUnconnectedPair(settlements);
-    if (extraPair && extraPair.distance <= ROAD_NETWORK.maxExtraLinkDistance && connectSettlementsWithRoad(state, extraPair.a, extraPair.b) > 0) {
+    if (
+      extraPair &&
+      extraPair.distance <= ROAD_NETWORK.maxExtraLinkDistance &&
+      areLandConnected(state.world, extraPair.a, extraPair.b) &&
+      connectSettlementsWithRoad(state, extraPair.a, extraPair.b) > 0
+    ) {
       linksBuilt += 1;
       if (linksBuilt >= ROAD_NETWORK.maxLinksPerStrategyTick) return linksBuilt;
     }
@@ -414,6 +439,8 @@ function maybeCreateMigration(state: GameState): void {
     ? state.settlements.find((settlement) => settlement.civilizationId === troubled.civilizationId && settlement.id !== troubled.id && settlement.foodSecurity > 60)
     : undefined;
   if (!troubled || !destination || state.migrationGroups.some((group) => group.fromSettlementId === troubled.id)) return;
+  const seaJourney = !areLandConnected(state.world, troubled, destination);
+  if (seaJourney && (!hasHarbor(state, troubled.id) || !hasHarbor(state, destination.id))) return;
   state.migrationGroups.push({
     id: state.ids.next("migration"),
     fromSettlementId: troubled.id,
@@ -421,7 +448,8 @@ function maybeCreateMigration(state: GameState): void {
     x: troubled.centerX,
     y: troubled.centerY,
     migrants: 2,
-    reason: "voedseltekort"
+    reason: "voedseltekort",
+    transport: seaJourney ? "sea" : "land"
   });
   troubled.abstractPopulation = Math.max(0, troubled.abstractPopulation - 2);
   addHistoricalEvent(state, "famine", `${troubled.name} stuurde migranten weg door voedseltekort.`, {
@@ -439,7 +467,7 @@ function updateMigrationGroups(state: GameState, dt: number): void {
     const dx = destination.centerX - group.x;
     const dy = destination.centerY - group.y;
     const distance = Math.hypot(dx, dy);
-    const speed = 0.95;
+    const speed = group.transport === "sea" ? 1.3 : 0.95;
     if (distance <= speed * dt || distance < 0.2) {
       destination.abstractPopulation += group.migrants;
       addHistoricalEvent(state, "colonization", `${group.migrants} migranten bereikten ${destination.name}.`, {

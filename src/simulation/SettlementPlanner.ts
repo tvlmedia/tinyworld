@@ -4,6 +4,7 @@ import { Settlement } from "../entities/Civilization";
 import { Point, rectsOverlap } from "../utils/MathUtils";
 import { isWalkableTile } from "../world/Tile";
 import { getTile } from "../world/World";
+import { isCoastal } from "../world/Maritime";
 import { addEvent } from "./EventSystem";
 import { isStorageNearCapacity } from "./ResourceSystem";
 import { isBuildingUnlocked } from "./TechnologySystem";
@@ -43,14 +44,21 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   const unlocked = (type: BuildingType) => isBuildingUnlocked(state, settlement?.civilizationId, type);
 
   if (completed("mine") < 1 && !planned("mine")) return "mine";
+  if (population >= 10 && completed("market") >= 1 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
   if (bedCapacity < population + 2 && !planned("house")) return "house";
   if ((completed("house") >= 1 || state.resources.food < 42) && completed("farm") < desiredFarms && !planned("farm")) return "farm";
   if (completed("woodcutter") < 1 && completed("house") >= 1 && !planned("woodcutter")) return "woodcutter";
   if (population >= 6 && completed("well") < 1 && !planned("well")) return "well";
   if (isStorageNearCapacity(state.resources, state.buildings) && completed("storage") < 3 && !planned("storage")) return "storage";
   if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
+  if (
+    population >= 18 &&
+    completed("school") >= 1 &&
+    isCoastal(state.world, { x: settlement?.centerX ?? state.world.spawn.x, y: settlement?.centerY ?? state.world.spawn.y }, 12)
+  ) {
+    if (unlocked("harbor") && completed("harbor") < 1 && !planned("harbor")) return "harbor";
+  }
   if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
-  if (population >= 10 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
   if (population >= 24 && unlocked("reservoir") && completed("reservoir") < 1 && !planned("reservoir")) return "reservoir";
   if (population >= 35 && unlocked("firestation") && completed("firestation") < Math.max(1, Math.floor(population / 55)) && !planned("firestation")) {
     return "firestation";
@@ -133,6 +141,7 @@ export function isValidBuildingSpot(state: GameState, x: number, y: number, type
       if (!tile || !isWalkableTile(tile) || tile.type === "rock") return false;
     }
   }
+  if (type === "harbor" && !isCoastal(state.world, { x: x + definition.width / 2, y: y + definition.height / 2 }, 5)) return false;
   return true;
 }
 
@@ -142,7 +151,8 @@ function scoreSpot(state: GameState, spot: Point, type: BuildingType, center: Po
   const farmFertility = type === "farm" ? -averageFertility(state, spot, BUILDING_DEFINITIONS[type].width, BUILDING_DEFINITIONS[type].height) * 16 : 0;
   const mineRocks = type === "mine" ? nearbyRockCount(state, spot) * -5 : 0;
   const forestryTrees = type === "forestry" ? nearbyForestCount(state, spot) * -1.4 : 0;
-  return centerDistance + roadBonus + farmFertility + mineRocks + forestryTrees;
+  const harborCoast = type === "harbor" ? nearbyWaterCount(state, spot) * -4 : 0;
+  return centerDistance + roadBonus + farmFertility + mineRocks + forestryTrees + harborCoast;
 }
 
 function nearbyRoadCount(state: GameState, spot: Point): number {
@@ -186,6 +196,17 @@ function nearbyForestCount(state: GameState, spot: Point): number {
   for (let y = spot.y - 8; y <= spot.y + 8; y += 1) {
     for (let x = spot.x - 8; x <= spot.x + 8; x += 1) {
       if (getTile(state.world, x, y)?.type === "forest") count += 1;
+    }
+  }
+  return count;
+}
+
+function nearbyWaterCount(state: GameState, spot: Point): number {
+  let count = 0;
+  for (let y = spot.y - 5; y <= spot.y + 5; y += 1) {
+    for (let x = spot.x - 5; x <= spot.x + 5; x += 1) {
+      const type = getTile(state.world, x, y)?.type;
+      if (type === "water" || type === "deepWater") count += 1;
     }
   }
   return count;

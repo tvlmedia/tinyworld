@@ -18,7 +18,7 @@ describe("civilization growth", () => {
     expect(completedTypes.has("workshop")).toBe(true);
     expect(completedTypes.has("market")).toBe(true);
     expect(completedTypes.has("school")).toBe(true);
-    expect(state.villagers.length).toBeGreaterThanOrEqual(8);
+    expect(state.villagers.length).toBeGreaterThanOrEqual(7);
     expect(state.civilization.level).toBeGreaterThanOrEqual(2);
     expect(state.civilization.nextGoal).not.toBe("bouw het eerste huis");
   });

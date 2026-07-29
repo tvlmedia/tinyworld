@@ -675,6 +675,8 @@ function buildingLabel(type: Building["type"]): string {
       return "het waterreservoir";
     case "firestation":
       return "de brandweerkazerne";
+    case "harbor":
+      return "de haven";
     case "market":
       return "de markt";
     case "school":

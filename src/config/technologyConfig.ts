@@ -126,6 +126,19 @@ export const TECHNOLOGIES: TechnologyDefinition[] = [
     weights: { mercantile: 7 }
   },
   {
+    id: "shipbuilding",
+    name: "Scheepsbouw",
+    era: "kingdom",
+    description: "Havens en zeilschepen verbinden eilanden, handel en overzeese koloniën.",
+    researchCost: 72,
+    prerequisites: ["woodworking", "roads", "writing"],
+    unlocks: [
+      { type: "building", target: "harbor", value: 1 },
+      { type: "economyBonus", target: "seaTrade", value: 1.25 }
+    ],
+    weights: { seafaring: 9, mercantile: 4, expansionist: 3 }
+  },
+  {
     id: "writing",
     name: "Schrift",
     era: "kingdom",

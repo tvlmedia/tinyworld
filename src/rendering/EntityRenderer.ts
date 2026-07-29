@@ -23,8 +23,12 @@ export class EntityRenderer {
     if (state.mapMode === "trade" || state.mapMode === "diplomacy") this.drawTradeRoutes(ctx, state, camera);
     if (state.mapMode === "war" || state.mapMode === "diplomacy") this.drawWarLines(ctx, state, camera);
     for (const army of state.armies) this.drawArmy(ctx, state, camera, army.id, army.x, army.y, army.civilizationId, army.soldierIds.length, army.morale);
-    for (const group of state.colonistGroups) this.drawTravelGroup(ctx, state, camera, group.x, group.y, group.civilizationId, group.settlers, "kol");
-    for (const group of state.migrationGroups) this.drawTravelGroup(ctx, state, camera, group.x, group.y, undefined, group.migrants, "mig");
+    for (const group of state.colonistGroups) {
+      this.drawTravelGroup(ctx, state, camera, group.x, group.y, group.civilizationId, group.settlers, "kol", group.transport === "sea");
+    }
+    for (const group of state.migrationGroups) {
+      this.drawTravelGroup(ctx, state, camera, group.x, group.y, undefined, group.migrants, "mig", group.transport === "sea");
+    }
   }
 
   private drawBuilding(ctx: CanvasRenderingContext2D, state: GameState, camera: Camera, building: Building, time: number): void {
@@ -113,6 +117,23 @@ export class EntityRenderer {
       for (let log = 0; log < 4; log += 1) {
         ctx.fillRect(x + width * (0.18 + log * 0.14), y + height * (0.6 + (log % 2) * 0.08), width * 0.22, height * 0.055);
       }
+      return;
+    }
+
+    if (building.type === "harbor") {
+      ctx.fillStyle = "#75513a";
+      for (let pier = 0; pier < 3; pier += 1) {
+        ctx.fillRect(x + width * (0.12 + pier * 0.3), y + height * 0.24, width * 0.16, height * 0.68);
+      }
+      ctx.fillStyle = "#b9824e";
+      ctx.fillRect(x + width * 0.07, y + height * 0.18, width * 0.86, height * 0.15);
+      ctx.fillStyle = "#d8d0ad";
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.48, y + height * 0.2);
+      ctx.lineTo(x + width * 0.48, y + height * 0.72);
+      ctx.lineTo(x + width * 0.72, y + height * 0.62);
+      ctx.closePath();
+      ctx.fill();
       return;
     }
 
@@ -364,16 +385,34 @@ export class EntityRenderer {
     worldY: number,
     civilizationId: string | undefined,
     count: number,
-    label: string
+    label: string,
+    boat = false
   ): void {
     const screen = camera.worldToScreen(worldX, worldY);
     const size = TILE_SIZE * camera.zoom;
     const civilization = civilizationId ? state.civilizations.find((item) => item.id === civilizationId) : undefined;
     const color = civilization ? CIVILIZATION_COLORS[civilization.colorIndex % CIVILIZATION_COLORS.length] : "#f2c14e";
-    ctx.fillStyle = "rgba(36, 29, 22, 0.55)";
-    ctx.fillRect(screen.x - size * 0.42, screen.y + size * 0.18, size * 0.84, size * 0.18);
-    ctx.fillStyle = "#9c6b42";
-    ctx.fillRect(screen.x - size * 0.32, screen.y - size * 0.12, size * 0.64, size * 0.34);
+    ctx.fillStyle = boat ? "#5a3b2a" : "rgba(36, 29, 22, 0.55)";
+    if (boat) {
+      ctx.beginPath();
+      ctx.moveTo(screen.x - size * 0.48, screen.y + size * 0.08);
+      ctx.lineTo(screen.x + size * 0.48, screen.y + size * 0.08);
+      ctx.lineTo(screen.x + size * 0.3, screen.y + size * 0.35);
+      ctx.lineTo(screen.x - size * 0.3, screen.y + size * 0.35);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(237, 229, 198, 0.9)";
+      ctx.beginPath();
+      ctx.moveTo(screen.x + size * 0.08, screen.y - size * 0.58);
+      ctx.lineTo(screen.x + size * 0.08, screen.y);
+      ctx.lineTo(screen.x + size * 0.42, screen.y - size * 0.08);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(screen.x - size * 0.42, screen.y + size * 0.18, size * 0.84, size * 0.18);
+      ctx.fillStyle = "#9c6b42";
+      ctx.fillRect(screen.x - size * 0.32, screen.y - size * 0.12, size * 0.64, size * 0.34);
+    }
     ctx.fillStyle = color;
     ctx.fillRect(screen.x + size * 0.16, screen.y - size * 0.5, size * 0.32, size * 0.18);
     ctx.strokeStyle = "#3c3028";
@@ -412,8 +451,18 @@ export class EntityRenderer {
       const t = route.progress <= 0.5 ? route.progress * 2 : (1 - route.progress) * 2;
       const x = a.x + (b.x - a.x) * t;
       const y = a.y + (b.y - a.y) * t;
-      ctx.fillStyle = "#f2c14e";
-      ctx.fillRect(x - 4 * camera.zoom, y - 3 * camera.zoom, 8 * camera.zoom, 6 * camera.zoom);
+      ctx.fillStyle = route.transport === "sea" ? "#8d5f3f" : "#f2c14e";
+      if (route.transport === "sea") {
+        ctx.beginPath();
+        ctx.moveTo(x - 6 * camera.zoom, y - 2 * camera.zoom);
+        ctx.lineTo(x + 6 * camera.zoom, y - 2 * camera.zoom);
+        ctx.lineTo(x + 3 * camera.zoom, y + 4 * camera.zoom);
+        ctx.lineTo(x - 3 * camera.zoom, y + 4 * camera.zoom);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(x - 4 * camera.zoom, y - 3 * camera.zoom, 8 * camera.zoom, 6 * camera.zoom);
+      }
     }
   }
 

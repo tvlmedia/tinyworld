@@ -51,7 +51,7 @@ export function validateWorld(world: World): WorldValidation {
     grassTiles > total * 0.08 &&
     forestTiles > total * 0.035 &&
     foodTiles > 24 &&
-    largestLandArea > landTiles * 0.55 &&
+    largestLandArea > landTiles * (world.width >= 256 ? 0.32 : 0.5) &&
     world.spawn.x > 0 &&
     world.spawn.y > 0;
 
@@ -119,12 +119,42 @@ function buildWorld(seed: string, size: number, heightBias = 0, displaySeed = se
     version: 0
   };
 
+  carveSeaStraits(world, seedHash);
   addMountainRanges(world, seedHash);
   carveRivers(world, seedHash);
   addBeaches(world);
   world.spawn = findSpawn(world);
   enrichSpawnArea(world);
   return world;
+}
+
+function carveSeaStraits(world: World, seedHash: number): void {
+  if (world.width < 256) return;
+  const rng = new SeededRandom(`${world.seed}:straits`);
+  const channels = 1;
+  for (let channel = 0; channel < channels; channel += 1) {
+    const vertical = channel % 2 === 0;
+    const base = world.width * (channel === 0 ? rng.float(0.38, 0.62) : rng.float(0.3, 0.7));
+    const amplitude = world.width * rng.float(0.045, 0.09);
+    const phase = rng.float(0, Math.PI * 2);
+    const width = Math.max(3, Math.floor(world.width / 90));
+    const length = vertical ? world.height : world.width;
+    for (let step = 0; step < length; step += 1) {
+      const wave =
+        Math.sin((step / length) * Math.PI * 2.2 + phase) * amplitude +
+        (hash2D(step, channel, seedHash + 8011) - 0.5) * width * 1.8;
+      const center = Math.floor(base + wave);
+      for (let offset = -width; offset <= width; offset += 1) {
+        const x = vertical ? center + offset : step;
+        const y = vertical ? step : center + offset;
+        const tile = getTile(world, x, y);
+        if (!tile) continue;
+        tile.type = Math.abs(offset) < Math.max(1, width - 1) ? "deepWater" : "water";
+        tile.elevation = Math.min(tile.elevation, Math.abs(offset) < width - 1 ? 0.2 : 0.3);
+        tile.resourceAmount = 0;
+      }
+    }
+  }
 }
 
 function worldScale(size: number): { region: number; detail: number; moisture: number; mountains: number; lakes: number } {

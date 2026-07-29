@@ -109,6 +109,8 @@ function buildingProductionLabel(type: keyof typeof BUILDING_DEFINITIONS): strin
       return "bluswater en brandbeveiliging";
     case "firestation":
       return "snellere georganiseerde brandweer";
+    case "harbor":
+      return "scheepvaart en handel";
     case "market":
       return "welvaart en handel";
     case "school":

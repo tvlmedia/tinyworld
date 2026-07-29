@@ -190,6 +190,7 @@ export interface TradeRoute {
   value: number;
   active: boolean;
   progress: number;
+  transport?: "land" | "sea";
 }
 
 export interface ColonistGroup {
@@ -204,6 +205,7 @@ export interface ColonistGroup {
   resources: ResourceStore;
   targetName: string;
   state: "preparing" | "traveling" | "founding" | "returning";
+  transport?: "land" | "sea";
 }
 
 export interface MigrationGroup {
@@ -214,6 +216,7 @@ export interface MigrationGroup {
   y: number;
   migrants: number;
   reason: string;
+  transport?: "land" | "sea";
 }
 
 export interface HistoricalEvent {
