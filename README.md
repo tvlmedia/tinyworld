@@ -58,8 +58,12 @@ Deze repo bevat `.github/workflows/deploy.yml`. Zet GitHub Pages op "GitHub Acti
 - Muiswiel of pinch: zoomen.
 - Klik of tik: bewoner, gebouw of tile selecteren.
 - `Space`: pauze.
-- `+`: snelheid wisselen.
-- `D`: debugmodus tonen/verbergen.
+- `+` / `-`: in- en uitzoomen.
+- `1`, `2`, `4`, `8`: snelheid instellen.
+- WASD of pijltjestoetsen: camera bewegen.
+- `0`: hele wereld in beeld.
+- `F`: focus op het dorp.
+- `` ` ``: debugmodus tonen/verbergen.
 - Toolbar: kies een god-tool en klik daarna op de wereld.
 
 ## Projectstructuur

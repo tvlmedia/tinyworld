@@ -23,7 +23,7 @@ export class Game {
     this.state = autosave ? this.saves.restoreState(autosave) : createNewGameState(defaultSeed(), DEFAULT_WORLD_SIZE, settings);
     this.renderer = new Renderer(canvas);
     this.renderer.resize();
-    this.renderer.camera.reset(this.state.world);
+    this.renderer.camera.fitToWorld(this.state.world);
     this.ui = this.createUi();
     this.input = this.createInput();
     this.loop = this.createLoop();

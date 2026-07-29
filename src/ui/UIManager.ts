@@ -90,7 +90,7 @@ export class UIManager {
           </div>
           <div class="button-row">
             <button type="button" data-action="center">Dorp</button>
-            <button type="button" data-action="reset-camera">Reset</button>
+            <button type="button" data-action="reset-camera">Overzicht</button>
             <button type="button" data-action="zoom-in">+</button>
             <button type="button" data-action="zoom-out">-</button>
           </div>
@@ -178,10 +178,10 @@ export class UIManager {
       this.actions.newWorld(seed, size);
     }
     if (action === "random-world") this.actions.randomWorld();
-    if (action === "center") this.renderer.camera.centerOn(this.state.world.spawn, this.state.world);
+    if (action === "center") this.renderer.camera.focusVillage(this.state.world);
     if (action === "reset-camera") this.renderer.camera.reset(this.state.world);
-    if (action === "zoom-in") this.renderer.camera.setZoom(this.renderer.camera.zoom + 0.25, this.state.world);
-    if (action === "zoom-out") this.renderer.camera.setZoom(this.renderer.camera.zoom - 0.25, this.state.world);
+    if (action === "zoom-in") this.renderer.camera.zoomBy(1.3, this.state.world);
+    if (action === "zoom-out") this.renderer.camera.zoomBy(1 / 1.3, this.state.world);
     if (action === "close-tutorial") {
       markTutorialSeen();
       const tutorial = this.root.querySelector<HTMLElement>("#tutorial");

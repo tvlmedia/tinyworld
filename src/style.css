@@ -87,6 +87,11 @@ label {
   image-rendering: pixelated;
   touch-action: none;
   background: #235b8a;
+  cursor: grab;
+}
+
+#game-canvas.is-panning {
+  cursor: grabbing;
 }
 
 #ui-root {
