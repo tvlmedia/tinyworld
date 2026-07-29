@@ -1,6 +1,6 @@
 import { preferredWork } from "./Jobs";
 import { GameState } from "../app/GameState";
-import { allMaterialsDelivered, buildingCenter, materialMissing, Building } from "../entities/Building";
+import { allMaterialsDelivered, buildingCenter, materialMissing, BUILDING_DEFINITIONS, Building } from "../entities/Building";
 import { ResourceType } from "../entities/Resources";
 import { say, setVillagerState } from "./VillagerStateMachine";
 import { Villager } from "../entities/Villager";
@@ -55,10 +55,12 @@ function completeAction(villager: Villager, state: GameState): void {
   if (villager.state === "chopTree" && villager.targetTile) {
     const tile = getTile(state.world, villager.targetTile.x, villager.targetTile.y);
     if (tile && tile.type === "forest") {
-      const amount = state.buildingEffects.woodBonus ? 7 : 5;
+      const managed = nearbyForestry(state, villager, tile.x, tile.y);
+      const amount = managed ? 10 : state.buildingEffects.woodBonus ? 7 : 5;
       tile.resourceAmount -= 1;
       if (tile.resourceAmount <= 0) {
-        tile.type = "grass";
+        tile.type = managed ? "forest" : "grass";
+        tile.resourceAmount = managed ? 0 : tile.resourceAmount;
         state.world.version += 1;
       }
       villager.carrying = { type: "wood", amount };
@@ -258,13 +260,22 @@ function findFood(villager: Villager, state: GameState): void {
 
 function findTree(villager: Villager, state: GameState): void {
   setVillagerState(villager, "findTree");
-  const tile = findNearestTile(state, villager, (candidate) => candidate.type === "forest" && candidate.resourceAmount > 0);
-  if (!tile) {
+  const forestry = nearestCompletedBuilding(state, villager, "forestry");
+  const tile =
+    forestry &&
+    findNearestTile(
+      state,
+      buildingCenter(forestry),
+      (candidate) => candidate.type === "forest" && candidate.resourceAmount > 0,
+      18
+    );
+  const fallback = tile ?? findNearestTile(state, villager, (candidate) => candidate.type === "forest" && candidate.resourceAmount > 0);
+  if (!fallback) {
     wander(villager, state);
     return;
   }
-  villager.targetTile = { x: tile.x, y: tile.y };
-  setPath(villager, state, tile, "walkToTree");
+  villager.targetTile = { x: fallback.x, y: fallback.y };
+  setPath(villager, state, fallback, "walkToTree");
 }
 
 function findStone(villager: Villager, state: GameState): void {
@@ -428,7 +439,7 @@ function deliveryStateFor(resource: ResourceType): "deliverWood" | "deliverFood"
 
 function findNearestTile(
   state: GameState,
-  villager: Villager,
+  villager: Point,
   predicate: (tile: NonNullable<ReturnType<typeof getTile>>) => boolean,
   radius = 48
 ) {
@@ -507,8 +518,47 @@ function completeBuilding(building: Building, state: GameState, builderName: str
   if (building.type === "mine") {
     openMineShaft(state, building);
   }
+  if (building.type === "forestry") {
+    establishManagedForest(state, building);
+  }
   createRoadToCenter(state, building);
   addEvent(state, `${builderName} voltooide ${buildingLabel(building.type)}.`);
+}
+
+function establishManagedForest(state: GameState, building: Building): void {
+  let planted = 0;
+  for (let radius = 2; radius <= 8 && planted < 28; radius += 1) {
+    for (let y = building.y - radius; y < building.y + building.height + radius && planted < 28; y += 1) {
+      for (let x = building.x - radius; x < building.x + building.width + radius && planted < 28; x += 1) {
+        const onRing =
+          x === building.x - radius ||
+          x === building.x + building.width + radius - 1 ||
+          y === building.y - radius ||
+          y === building.y + building.height + radius - 1;
+        if (!onRing || (x + y) % 2 !== 0) continue;
+        const tile = getTile(state.world, x, y);
+        if (!tile || tile.occupiedByBuildingId || tile.type !== "grass" || tile.fertility < 0.38) continue;
+        tile.type = "forest";
+        tile.resourceAmount = Math.max(1, tile.resourceAmount);
+        planted += 1;
+      }
+    }
+  }
+  if (planted > 0) {
+    state.world.version += 1;
+    state.pathfinder.clear();
+    addEvent(state, `${BUILDING_DEFINITIONS.forestry.label} plantte ${planted} nieuwe bospercelen.`);
+  }
+}
+
+function nearbyForestry(state: GameState, villager: Villager, x: number, y: number): Building | undefined {
+  return state.buildings.find(
+    (building) =>
+      building.type === "forestry" &&
+      building.status === "complete" &&
+      (!villager.settlementId || building.settlementId === villager.settlementId) &&
+      Math.hypot(building.x + building.width / 2 - x, building.y + building.height / 2 - y) <= 18
+  );
 }
 
 function cultivateFarmPlots(state: GameState, building: Building): void {
@@ -591,6 +641,8 @@ function buildingLabel(type: Building["type"]): string {
       return "een huis";
     case "woodcutter":
       return "de houthakkershut";
+    case "forestry":
+      return "het bosbouwbedrijf";
     case "mine":
       return "de mijn";
     case "farm":

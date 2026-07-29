@@ -5,6 +5,7 @@ import { Civilization, Settlement } from "../entities/Civilization";
 import { addHistoricalEvent } from "./HistorySystem";
 
 const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, string>> = {
+  forestry: "woodworking",
   market: "markets",
   school: "writing",
   watchtower: "fortification",

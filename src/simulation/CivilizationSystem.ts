@@ -106,7 +106,7 @@ function syncSettlementAggregates(state: GameState): void {
     settlement.population = Math.max(0, Math.round(localPopulation));
     settlement.housingCapacity = completed.reduce((sum, building) => sum + building.capacity, 0);
     settlement.foodProduction = (counts.farm * 16 + counts.market * 2) * economyMultiplier(civilization, "food");
-    settlement.woodProduction = counts.woodcutter * 10 * economyMultiplier(civilization, "wood");
+    settlement.woodProduction = (counts.woodcutter * 10 + counts.forestry * 24) * economyMultiplier(civilization, "wood");
     settlement.stoneProduction = (counts.mine * 8 + counts.workshop * 1) * economyMultiplier(civilization, "stone");
     settlement.metalProduction = (counts.mine > 0 && state.civilization.knowledge > 40 ? counts.mine * 2 : 0) * economyMultiplier(civilization, "metal");
     settlement.scienceProduction =
@@ -279,6 +279,7 @@ function nextCivilizationGoal(state: GameState, completed: Record<BuildingType, 
   if (bedCapacity < state.villagers.length + 2) return "bouw meer huizen";
   if (completed.farm < Math.max(1, Math.ceil(state.villagers.length / 7))) return "leg meer boerderijen aan";
   if (completed.woodcutter < 1) return "bouw een houthakkershut";
+  if (state.villagers.length >= 20 && completed.forestry < 1) return "bouw een bosbouwbedrijf";
   if (completed.well < 1) return "bouw een waterput";
   if (completed.workshop < 1) return "bouw een werkplaats";
   if (completed.market < 1) return "open een markt";
@@ -293,6 +294,7 @@ function completedCounts(state: GameState): Record<BuildingType, number> {
     storage: 0,
     house: 0,
     woodcutter: 0,
+    forestry: 0,
     mine: 0,
     farm: 0,
     workshop: 0,
@@ -314,6 +316,7 @@ function countBuildings(buildings: { type: BuildingType }[]): Record<BuildingTyp
     storage: 0,
     house: 0,
     woodcutter: 0,
+    forestry: 0,
     mine: 0,
     farm: 0,
     workshop: 0,

@@ -51,6 +51,13 @@ export function chooseNextBuilding(state: GameState, settlement = state.settleme
   if (population >= 7 && completed("workshop") < 1 && !planned("workshop")) return "workshop";
   if (population >= 8 && unlocked("market") && completed("market") < 1 && !planned("market")) return "market";
   if (population >= 10 && unlocked("school") && completed("school") < 1 && !planned("school")) return "school";
+  const desiredForestry = population >= 42 ? 2 : 1;
+  const needsScaledWood =
+    population >= 20 &&
+    completed("house") >= 3 &&
+    completed("school") >= 1 &&
+    (state.resources.wood < population * 5 || bedCapacity < population + 5);
+  if (needsScaledWood && unlocked("forestry") && completed("forestry") < desiredForestry && !planned("forestry")) return "forestry";
   if (population >= 11 && unlocked("watchtower") && completed("watchtower") < 1 && !planned("watchtower")) return "watchtower";
   if (state.civilization.level >= 3 && unlocked("monument") && completed("monument") < 1 && !planned("monument")) return "monument";
   if (population >= 12 && completed("farm") < 5 && !planned("farm")) return "farm";
@@ -94,7 +101,7 @@ function projectWeight(state: GameState, settlement: Settlement): number {
   const next = chooseNextBuilding(state, settlement);
   let weight = priorityWeight(settlement);
   if (state.civilizations.some((civilization) => civilization.capitalSettlementId === settlement.id)) weight += 1.5;
-  if (next === "mine" || next === "workshop" || next === "market" || next === "school") weight += 3;
+  if (next === "mine" || next === "workshop" || next === "forestry" || next === "market" || next === "school") weight += 3;
   if (next === "watchtower") weight += 2;
   if (settlement.tier === "camp" && (next === "house" || next === "farm")) weight += 1;
   return weight;
@@ -130,7 +137,8 @@ function scoreSpot(state: GameState, spot: Point, type: BuildingType, center: Po
   const roadBonus = nearbyRoadCount(state, spot) * -3;
   const farmFertility = type === "farm" ? -averageFertility(state, spot, BUILDING_DEFINITIONS[type].width, BUILDING_DEFINITIONS[type].height) * 16 : 0;
   const mineRocks = type === "mine" ? nearbyRockCount(state, spot) * -5 : 0;
-  return centerDistance + roadBonus + farmFertility + mineRocks;
+  const forestryTrees = type === "forestry" ? nearbyForestCount(state, spot) * -1.4 : 0;
+  return centerDistance + roadBonus + farmFertility + mineRocks + forestryTrees;
 }
 
 function nearbyRoadCount(state: GameState, spot: Point): number {
@@ -164,6 +172,16 @@ function nearbyRockCount(state: GameState, spot: Point): number {
     for (let x = spot.x - 6; x <= spot.x + 6; x += 1) {
       const tile = getTile(state.world, x, y);
       if (tile?.type === "rock" && tile.resourceAmount > 0) count += 1;
+    }
+  }
+  return count;
+}
+
+function nearbyForestCount(state: GameState, spot: Point): number {
+  let count = 0;
+  for (let y = spot.y - 8; y <= spot.y + 8; y += 1) {
+    for (let x = spot.x - 8; x <= spot.x + 8; x += 1) {
+      if (getTile(state.world, x, y)?.type === "forest") count += 1;
     }
   }
   return count;

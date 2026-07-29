@@ -9,6 +9,7 @@ describe("earned resource economy", () => {
     state.resources = { food: 0, wood: 0, stone: 0 };
     createBuildingAt(state, "farm", state.world.spawn.x + 8, state.world.spawn.y + 5, true);
     createBuildingAt(state, "woodcutter", state.world.spawn.x + 13, state.world.spawn.y + 5, true);
+    createBuildingAt(state, "forestry", state.world.spawn.x - 17, state.world.spawn.y + 7, true);
     createBuildingAt(state, "mine", state.world.spawn.x + 18, state.world.spawn.y + 5, true);
     createBuildingAt(state, "workshop", state.world.spawn.x + 23, state.world.spawn.y + 5, true);
     createBuildingAt(state, "market", state.world.spawn.x + 29, state.world.spawn.y + 5, true);

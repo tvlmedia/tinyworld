@@ -53,6 +53,9 @@ function updateProduction(state: GameState, dt: number): void {
     if (building.type === "mine" && building.productionTimer >= 36) {
       building.productionTimer = 0;
       refreshMineVein(state, building);
+    } else if (building.type === "forestry" && building.productionTimer >= 24) {
+      building.productionTimer = 0;
+      tendManagedForest(state, building);
     } else if (building.type === "school" && building.productionTimer >= 30) {
       building.productionTimer = 0;
       for (const villager of state.villagers) {
@@ -60,6 +63,26 @@ function updateProduction(state: GameState, dt: number): void {
       }
     }
   }
+}
+
+function tendManagedForest(state: GameState, forestry: Building): void {
+  const candidates = [];
+  for (let y = forestry.y - 8; y < forestry.y + forestry.height + 8; y += 1) {
+    for (let x = forestry.x - 8; x < forestry.x + forestry.width + 8; x += 1) {
+      const tile = getTile(state.world, x, y);
+      if (!tile || tile.occupiedByBuildingId) continue;
+      if (tile.type === "forest" && tile.resourceAmount < 7) candidates.push(tile);
+    }
+  }
+  if (candidates.length === 0) return;
+  candidates.sort((a, b) => a.resourceAmount - b.resourceAmount);
+  const workers = state.villagers.filter(
+    (villager) => villager.job === "woodcutter" && (!forestry.settlementId || villager.settlementId === forestry.settlementId)
+  ).length;
+  if (workers === 0) return;
+  const plotsTended = Math.min(candidates.length, Math.max(1, Math.min(4, workers)));
+  for (let index = 0; index < plotsTended; index += 1) candidates[index].resourceAmount += 1;
+  state.world.version += 1;
 }
 
 function refreshMineVein(state: GameState, mine: Building): void {

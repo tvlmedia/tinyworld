@@ -89,6 +89,22 @@ export class EntityRenderer {
       return;
     }
 
+    if (building.type === "forestry") {
+      ctx.fillStyle = "#80603d";
+      ctx.fillRect(x + width * 0.08, y + height * 0.48, width * 0.84, height * 0.34);
+      ctx.fillStyle = "#4d7f43";
+      for (let column = 0; column < 5; column += 1) {
+        ctx.beginPath();
+        ctx.arc(x + width * (0.14 + column * 0.18), y + height * 0.3, width * 0.075, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#d3a35b";
+      for (let log = 0; log < 4; log += 1) {
+        ctx.fillRect(x + width * (0.18 + log * 0.14), y + height * (0.6 + (log % 2) * 0.08), width * 0.22, height * 0.055);
+      }
+      return;
+    }
+
     if (building.type === "well") {
       ctx.fillStyle = "#6e6154";
       ctx.beginPath();
