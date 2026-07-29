@@ -23,6 +23,7 @@ export interface UIActions {
 
 export class UIManager {
   private saveMetas: SaveMeta[] = [];
+  private readonly htmlCache = new Map<string, string>();
 
   constructor(
     private readonly root: HTMLElement,
@@ -35,6 +36,7 @@ export class UIManager {
   init(): void {
     this.saveMetas = this.saves.listSlots();
     this.root.innerHTML = this.shellHtml();
+    this.htmlCache.clear();
     this.bind();
     this.update();
     if (!tutorialSeen()) this.showTutorial();
@@ -281,8 +283,11 @@ export class UIManager {
   }
 
   private replaceHtml(id: string, html: string): void {
+    if (this.htmlCache.get(id) === html) return;
     const element = this.root.querySelector<HTMLElement>(`#${id}`);
-    if (element) element.innerHTML = html;
+    if (!element) return;
+    element.innerHTML = html;
+    this.htmlCache.set(id, html);
   }
 
   private debugHtml(): string {
